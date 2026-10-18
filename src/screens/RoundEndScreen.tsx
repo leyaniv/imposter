@@ -1,14 +1,31 @@
-import type { Round } from '../game/types';
+import Scoreboard from '../components/Scoreboard';
+import StickyActions from '../components/StickyActions';
+import WordReport from '../components/WordReport';
+import { roundPoints } from '../game/rules';
+import type { Round, Winner, WordProblem } from '../game/types';
 import { he } from '../i18n/he';
 import { displayName } from '../ui/names';
+import { winReasonText, winnerTitle } from '../ui/results';
 
 interface Props {
   round: Round;
+  scores: Record<string, number>;
+  onSetWinner: (winner: Winner) => void;
+  onResetScores: () => void;
+  onReportWord: (problem: WordProblem) => void;
   onAgain: () => void;
   onNewGame: () => void;
 }
 
-export default function RoundEndScreen({ round, onAgain, onNewGame }: Props) {
+export default function RoundEndScreen({
+  round,
+  scores,
+  onSetWinner,
+  onResetScores,
+  onReportWord,
+  onAgain,
+  onNewGame,
+}: Props) {
   const imposters = round.players
     .map((player, index) => ({ player, index }))
     .filter(({ player }) => round.imposterIds.includes(player.id));
@@ -17,6 +34,25 @@ export default function RoundEndScreen({ round, onAgain, onNewGame }: Props) {
     <main className="screen">
       <div className="screen-body center">
         <h1 className="heading">{he.roundEnd.title}</h1>
+
+        {round.winner ? (
+          <div className="winner-banner">
+            <p className="winner-title">{winnerTitle(round)}</p>
+            {winReasonText(round) && <p className="muted">{winReasonText(round)}</p>}
+          </div>
+        ) : (
+          <div className="result-card">
+            <p className="label">{he.roundEnd.whoWon}</p>
+            <div className="actions-row">
+              <button className="btn btn-secondary" onClick={() => onSetWinner('crew')}>
+                {he.roundEnd.crew}
+              </button>
+              <button className="btn btn-secondary" onClick={() => onSetWinner('imposters')}>
+                {he.roundEnd.imposterTeam(round.imposterIds.length)}
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="result-card">
           <p className="muted">{he.roundEnd.word}</p>
@@ -32,16 +68,23 @@ export default function RoundEndScreen({ round, onAgain, onNewGame }: Props) {
             </div>
           ))}
         </div>
+
+        <Scoreboard players={round.players} scores={scores} gains={roundPoints(round)} onReset={onResetScores} />
+
+        <div className="feedback">
+          {!round.wordReported && <p className="help">{he.feedback.title}</p>}
+          <WordReport reported={!!round.wordReported} onReport={onReportWord} />
+        </div>
       </div>
 
-      <div className="screen-actions">
+      <StickyActions>
         <button className="btn btn-primary" onClick={onAgain}>
           {he.roundEnd.again}
         </button>
         <button className="btn btn-ghost" onClick={onNewGame}>
           {he.roundEnd.newGame}
         </button>
-      </div>
+      </StickyActions>
     </main>
   );
 }

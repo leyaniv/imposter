@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { trackAction, trackVisits } from './analytics/events';
 import ConfirmDialog from './components/ConfirmDialog';
+import { hasScores } from './components/Scoreboard';
 import words from './data/words.he.json';
 import { cryptoRng } from './game/random';
 import { startRoundAction, type Action } from './game/reducer';
@@ -15,6 +16,7 @@ import PassScreen from './screens/PassScreen';
 import RevealScreen from './screens/RevealScreen';
 import RoundEndScreen from './screens/RoundEndScreen';
 import RulesScreen from './screens/RulesScreen';
+import ScoresScreen from './screens/ScoresScreen';
 import SetupScreen from './screens/SetupScreen';
 import StartScreen from './screens/StartScreen';
 import { displayName } from './ui/names';
@@ -53,12 +55,28 @@ export default function App() {
   switch (phase) {
     case 'home':
       screen = (
-        <HomeScreen onNewGame={() => dispatch({ type: 'openSetup' })} onRules={() => dispatch({ type: 'openRules' })} />
+        <HomeScreen
+          showScores={hasScores(state.settings.players, state.scores)}
+          onNewGame={() => dispatch({ type: 'openSetup' })}
+          onScores={() => dispatch({ type: 'openScores' })}
+          onRules={() => dispatch({ type: 'openRules' })}
+        />
       );
       break;
 
     case 'rules':
       screen = <RulesScreen onBack={() => dispatch({ type: 'goHome' })} />;
+      break;
+
+    case 'scores':
+      screen = (
+        <ScoresScreen
+          players={state.settings.players}
+          scores={state.scores}
+          onReset={() => dispatch({ type: 'resetScores' })}
+          onBack={() => dispatch({ type: 'goHome' })}
+        />
+      );
       break;
 
     case 'setup':
@@ -106,7 +124,13 @@ export default function App() {
       screen = (
         <StartScreen
           round={round!}
+          scores={state.scores}
           onAnnounced={() => dispatch({ type: 'announceStarter' })}
+          onEliminate={(playerId) => dispatch({ type: 'eliminate', playerId })}
+          onLastGuess={(correct) => dispatch({ type: 'lastGuess', correct })}
+          onDismissReveal={() => dispatch({ type: 'dismissReveal' })}
+          onFreeGuess={(correct) => dispatch({ type: 'freeGuess', correct })}
+          onReportWord={(problem) => dispatch({ type: 'reportWord', problem })}
           onEndRound={() => dispatch({ type: 'endRound' })}
           onExit={askExit}
         />
@@ -115,7 +139,15 @@ export default function App() {
 
     case 'roundEnd':
       screen = (
-        <RoundEndScreen round={round!} onAgain={startRound} onNewGame={() => dispatch({ type: 'openSetup' })} />
+        <RoundEndScreen
+          round={round!}
+          scores={state.scores}
+          onSetWinner={(winner) => dispatch({ type: 'setWinner', winner })}
+          onResetScores={() => dispatch({ type: 'resetScores' })}
+          onReportWord={(problem) => dispatch({ type: 'reportWord', problem })}
+          onAgain={startRound}
+          onNewGame={() => dispatch({ type: 'openSetup' })}
+        />
       );
       break;
   }

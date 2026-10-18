@@ -1,10 +1,30 @@
 import { defaultSettings, initialState, normalizeSettings } from './reducer';
-import { ROUND_PHASES, type AppState, type Phase, type Round, type Settings } from './types';
+import { blankPlayers } from './setup';
+import {
+  ROUND_PHASES,
+  type AppState,
+  type Phase,
+  type Player,
+  type Round,
+  type Settings,
+  type WinReason,
+} from './types';
 
-/** להעלות כשמבנה המצב השמור משתנה בצורה שלא תואמת לאחור */
-export const STATE_VERSION = 1;
+/**
+ * להעלות כשמבנה המצב השמור משתנה בצורה שלא תואמת לאחור, ולהוסיף המרה מהגרסה הקודמת.
+ * 2: רשימת שחקנים עם מזהים קבועים (במקום playerCount ו-names), הדחות וניקוד.
+ */
+export const STATE_VERSION = 2;
 
-const PHASES: readonly Phase[] = ['home', 'rules', 'setup', ...ROUND_PHASES];
+const PHASES: readonly Phase[] = ['home', 'rules', 'scores', 'setup', ...ROUND_PHASES];
+const WIN_REASONS: readonly WinReason[] = [
+  'allCaught',
+  'outnumbered',
+  'lastGuess',
+  'freeGuessRight',
+  'freeGuessWrong',
+  'manual',
+];
 
 export function serialize(state: AppState): unknown {
   return { version: STATE_VERSION, state };
@@ -12,15 +32,16 @@ export function serialize(state: AppState): unknown {
 
 /**
  * הופך מצב שמור (שאולי ישן או פגום) למצב תקין.
- * כל מה שלא עובר בדיקה נזרק ומוחלף בברירת מחדל.
+ * מצב מגרסה 1 מומר, וכל מה שלא עובר בדיקה נזרק ומוחלף בברירת מחדל.
  */
 export function rehydrate(raw: unknown): AppState {
-  if (!isObject(raw) || raw.version !== STATE_VERSION || !isObject(raw.state)) return initialState;
+  if (!isObject(raw) || !isObject(raw.state)) return initialState;
+  if (raw.version !== STATE_VERSION && raw.version !== 1) return initialState;
   const saved = raw.state;
 
   const settings = readSettings(saved.settings);
   const usedWords = isStringArray(saved.usedWords) ? saved.usedWords : [];
-  const round = isRound(saved.round) ? saved.round : undefined;
+  const round = readRound(saved.round);
 
   let phase: Phase = PHASES.includes(saved.phase as Phase) ? (saved.phase as Phase) : 'home';
   if (ROUND_PHASES.includes(phase) && !round) phase = 'home';
@@ -32,14 +53,14 @@ export function rehydrate(raw: unknown): AppState {
     settings,
     round: ROUND_PHASES.includes(phase) ? round : undefined,
     usedWords,
+    scores: readScores(saved.scores),
   };
 }
 
 function readSettings(value: unknown): Settings {
   if (!isObject(value)) return defaultSettings;
   return normalizeSettings({
-    playerCount: isFiniteNumber(value.playerCount) ? value.playerCount : defaultSettings.playerCount,
-    names: isStringArray(value.names) ? value.names : defaultSettings.names,
+    players: readPlayers(value),
     categories: isStringArray(value.categories) ? value.categories : defaultSettings.categories,
     imposterCount: value.imposterCount === 2 ? 2 : 1,
     imposterNeverStarts:
@@ -48,19 +69,66 @@ function readSettings(value: unknown): Settings {
   });
 }
 
-function isRound(value: unknown): value is Round {
-  if (!isObject(value)) return false;
+/** גרסה 2 שומרת players. גרסה 1 שמרה playerCount ו-names, והמזהים שלה היו p1, p2... לפי הסדר */
+function readPlayers(settings: Record<string, unknown>): Player[] {
+  if (isPlayerList(settings.players)) return settings.players.map(({ id, name }) => ({ id, name }));
+
+  const count = isFiniteNumber(settings.playerCount)
+    ? Math.round(settings.playerCount)
+    : defaultSettings.players.length;
+  const names = isStringArray(settings.names) ? settings.names : [];
+  return blankPlayers(Math.max(1, Math.min(count, 50))).map((player, i) => ({ ...player, name: names[i] ?? '' }));
+}
+
+function readRound(value: unknown): Round | undefined {
+  if (!isObject(value)) return undefined;
   const { players, imposterIds, word, category, hints, revealIndex, startIndex } = value;
-  if (!Array.isArray(players) || players.length === 0) return false;
-  if (!players.every((p) => isObject(p) && typeof p.id === 'string' && typeof p.name === 'string')) return false;
-  if (!isStringArray(imposterIds) || imposterIds.length === 0) return false;
-  if (!isObject(hints) || !imposterIds.every((id) => typeof hints[id] === 'string')) return false;
-  return (
-    typeof word === 'string' &&
-    typeof category === 'string' &&
-    isIndex(revealIndex, players.length + 1) &&
-    isIndex(startIndex, players.length)
-  );
+  if (!isPlayerList(players) || players.length === 0) return undefined;
+  const ids = players.map((player) => player.id);
+  if (!isStringArray(imposterIds) || imposterIds.length === 0 || !imposterIds.every((id) => ids.includes(id))) {
+    return undefined;
+  }
+  if (!isObject(hints) || !imposterIds.every((id) => typeof hints[id] === 'string')) return undefined;
+  if (
+    typeof word !== 'string' ||
+    typeof category !== 'string' ||
+    !isIndex(revealIndex, players.length + 1) ||
+    !isIndex(startIndex, players.length)
+  ) {
+    return undefined;
+  }
+
+  const round = value as unknown as Round;
+  // גרסה 1 לא שמרה הדחות
+  const eliminatedIds = isStringArray(value.eliminatedIds) ? value.eliminatedIds.filter((id) => ids.includes(id)) : [];
+  const revealedId =
+    typeof value.revealedId === 'string' && eliminatedIds.includes(value.revealedId) ? value.revealedId : undefined;
+  const winner = value.winner === 'crew' || value.winner === 'imposters' ? value.winner : undefined;
+  const winReason = winner && WIN_REASONS.includes(value.winReason as WinReason) ? (value.winReason as WinReason) : undefined;
+
+  return {
+    ...round,
+    eliminatedIds,
+    revealedId,
+    guessPending:
+      value.guessPending === true && !!revealedId && imposterIds.includes(revealedId) && !winner ? true : undefined,
+    winner,
+    winReason: winner ? (winReason ?? 'manual') : undefined,
+    wordReported: value.wordReported === true ? true : undefined,
+  };
+}
+
+function readScores(value: unknown): Record<string, number> {
+  if (!isObject(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, number] => isFiniteNumber(entry[1])));
+}
+
+function isPlayerList(value: unknown): value is Player[] {
+  if (!Array.isArray(value)) return false;
+  if (!value.every((p) => isObject(p) && typeof p.id === 'string' && p.id !== '' && typeof p.name === 'string')) {
+    return false;
+  }
+  return new Set(value.map((p: Player) => p.id)).size === value.length;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

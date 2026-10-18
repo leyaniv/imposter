@@ -9,6 +9,8 @@
   --accent: #ff4d6d;
   --accent-text: #ffffff;
   --danger: #e5484d;
+  --warn: #f5b84d;
+  --success: #3ccf91;
   --radius: 16px;
   --font: 'Heebo', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
 }
@@ -190,6 +192,57 @@ button {
   transform: scale(0.98);
 }
 
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-icon svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+/* שני כפתורים זה לצד זה */
+.actions-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.actions-row .btn {
+  padding-inline: 8px;
+  font-size: 1rem;
+}
+
+.toast {
+  position: fixed;
+  inset-inline: 16px;
+  bottom: max(140px, calc(env(safe-area-inset-bottom) + 124px));
+  max-width: 448px;
+  margin: 0 auto;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  text-align: center;
+  font-weight: 600;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition:
+    opacity 180ms,
+    transform 180ms;
+}
+
+.toast-on {
+  opacity: 1;
+  transform: none;
+}
+
 .btn:disabled {
   opacity: 0.45;
   cursor: default;
@@ -232,38 +285,6 @@ button {
   gap: 10px;
 }
 
-.stepper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 24px;
-  background: var(--surface);
-  border-radius: var(--radius);
-  padding: 12px;
-}
-
-.stepper-btn {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  border: none;
-  background: var(--surface-2);
-  font-size: 1.8rem;
-  line-height: 1;
-}
-
-.stepper-btn:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
-.stepper-value {
-  min-width: 3ch;
-  text-align: center;
-  font-size: 2.2rem;
-  font-weight: 800;
-}
-
 .name-list {
   list-style: none;
   margin: 0;
@@ -276,7 +297,64 @@ button {
 .name-list li {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
+  border-radius: 12px;
+}
+
+/* השורה שגוררים: מעל השאר, עם צל, בלי אנימציה כדי שתעקוב בדיוק אחרי האצבע */
+.name-list li.dragging {
+  position: relative;
+  z-index: 2;
+  background: var(--bg);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.55);
+}
+
+.drag-handle {
+  flex: none;
+  width: 32px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  touch-action: none;
+  cursor: grab;
+}
+
+.dragging .drag-handle {
+  cursor: grabbing;
+  color: var(--accent);
+}
+
+.drag-handle svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.drag-handle:focus-visible,
+.remove-btn:focus-visible,
+.seat-button:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.remove-btn {
+  flex: none;
+}
+
+.remove-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.btn-dashed {
+  min-height: 48px;
+  background: transparent;
+  border: 2px dashed var(--border);
+  color: var(--muted);
 }
 
 .name-index {
@@ -303,6 +381,15 @@ button {
   outline-offset: 1px;
 }
 
+/* שם שמופיע פעמיים */
+.input-warn {
+  border-color: var(--warn);
+}
+
+.help.warn {
+  color: var(--warn);
+}
+
 .label-row {
   display: flex;
   align-items: center;
@@ -316,6 +403,12 @@ button {
   color: var(--accent);
   font-size: 0.95rem;
   font-weight: 600;
+}
+
+.link-muted {
+  align-self: center;
+  color: var(--muted);
+  font-weight: 400;
 }
 
 .link-btn:disabled {
@@ -466,6 +559,8 @@ button {
 .hold-card.held {
   border-style: solid;
   border-color: var(--accent);
+  /* משוב ויזואלי ללחיצה, גם בטלפונים בלי רטט (אייפון). זהה למתחזה ולשחקן רגיל */
+  animation: press-glow 420ms ease-out;
 }
 
 .hold-content,
@@ -532,7 +627,16 @@ button {
 }
 
 .seat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   transition: background-color 80ms, color 80ms;
+}
+
+.seat-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .compact .seat {
@@ -545,6 +649,153 @@ button {
   border-color: var(--accent);
   color: var(--accent-text);
   font-weight: 700;
+}
+
+/* ההגרלה נחתה: טבעת שמתרחבת סביב מי שמתחיל, גם בלי רטט */
+.seat-active.landed {
+  animation: land-ring 700ms ease-out 2;
+}
+
+/* אפשר ללחוץ כדי להדיח */
+.seat-button {
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.compact .seat-button {
+  font-size: 0.75rem;
+}
+
+.seat-button:not(.seat-active) {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.seat-button:active {
+  transform: translate(-50%, -50%) scale(0.94);
+}
+
+/* הניקוד בשורה קטנה מתחת לשם, כדי לא לקצר את השם */
+.with-scores .seat {
+  border-radius: 14px;
+  line-height: 1.25;
+}
+
+.seat-score {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.seat-active .seat-score {
+  color: rgb(255 255 255 / 0.85);
+}
+
+.compact .seat-score {
+  font-size: 0.65rem;
+}
+
+.seat-out {
+  opacity: 0.45;
+  text-decoration: line-through;
+  background: transparent;
+  border-style: dashed;
+}
+
+/* ---------- הדחה וניצחון ---------- */
+
+.outcome-tag {
+  padding: 6px 18px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.outcome-tag + .heading {
+  margin-top: 16px;
+}
+
+.outcome-imposter {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.winner-banner {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 20px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border));
+}
+
+.winner-title {
+  font-size: 1.8rem;
+  font-weight: 800;
+}
+
+.scoreboard {
+  align-items: stretch;
+  text-align: start;
+}
+
+.score-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.score-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.score-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.score-gain {
+  /* "+1" ולא "1+" בתוך טקסט מימין לשמאל */
+  direction: ltr;
+  unicode-bidi: isolate;
+  color: var(--success);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.score-value {
+  min-width: 2ch;
+  text-align: center;
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+.feedback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.feedback .chips {
+  justify-content: center;
 }
 
 .confirm-text {
@@ -669,6 +920,26 @@ button {
   from {
     transform: translateY(24px);
     opacity: 0;
+  }
+}
+
+@keyframes press-glow {
+  from {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 70%, transparent);
+    transform: scale(0.98);
+  }
+  to {
+    box-shadow: 0 0 0 18px transparent;
+    transform: none;
+  }
+}
+
+@keyframes land-ring {
+  from {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 80%, transparent);
+  }
+  to {
+    box-shadow: 0 0 0 16px transparent;
   }
 }
 

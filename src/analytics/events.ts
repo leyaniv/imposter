@@ -1,4 +1,5 @@
-import type { Action } from '../game/reducer';
+import { reducer, type Action } from '../game/reducer';
+import { isImposter } from '../game/rules';
 import { ROUND_PHASES, type AppState } from '../game/types';
 import { track, type EventData } from './posthog';
 
@@ -13,6 +14,9 @@ export function actionEvent(state: AppState, action: Action): AnalyticsEvent | n
   switch (action.type) {
     case 'openRules':
       return { name: 'rules_open' };
+
+    case 'openScores':
+      return { name: 'scores_open' };
 
     case 'openSetup':
       return { name: 'setup_open', data: { from: state.phase } };
@@ -30,15 +34,56 @@ export function actionEvent(state: AppState, action: Action): AnalyticsEvent | n
           show_category: settings.showCategory,
           categories: settings.categories.length === 0 ? 'all' : [...settings.categories].sort().join(', '),
           category_count: settings.categories.length,
-          named_players: settings.names.slice(0, settings.playerCount).filter((n) => n.trim()).length,
+          named_players: settings.players.filter((player) => player.name.trim()).length,
           word_category: action.round.category,
           again: state.phase === 'roundEnd',
         },
       };
 
+    case 'eliminate': {
+      const { round } = state;
+      if (state.phase !== 'start' || !round) return null;
+      return {
+        name: 'player_eliminated',
+        data: {
+          was_imposter: isImposter(round, action.playerId),
+          players: round.players.length,
+          eliminated: round.eliminatedIds.length + 1,
+        },
+      };
+    }
+
+    case 'lastGuess':
+      if (state.phase !== 'start' || !state.round?.guessPending) return null;
+      return { name: 'last_guess', data: { correct: action.correct } };
+
+    case 'freeGuess':
+      if (state.phase !== 'start' || !state.round || state.round.winner) return null;
+      return { name: 'free_guess', data: { correct: action.correct } };
+
     case 'endRound':
       if (state.phase !== 'start' || !state.round) return null;
       return { name: 'round_end', data: { players: state.round.players.length } };
+
+    case 'resetScores':
+      return { name: 'scores_reset', data: { from: state.phase } };
+
+    case 'reportWord': {
+      const { round } = state;
+      if (!ROUND_PHASES.includes(state.phase) || !round || round.wordReported) return null;
+      // משוב על המילה, כדי לדעת אילו מילים ורמזים לתקן
+      return {
+        name: 'word_feedback',
+        data: {
+          kind: action.problem,
+          during_round: state.phase !== 'roundEnd',
+          word: round.word,
+          word_category: round.category,
+          hints: round.imposterIds.map((id) => round.hints[id]).join(', '),
+          show_category: !!round.showCategory,
+        },
+      };
+    }
 
     case 'goHome':
       if (!ROUND_PHASES.includes(state.phase) || state.phase === 'roundEnd') return null;
@@ -49,11 +94,35 @@ export function actionEvent(state: AppState, action: Action): AnalyticsEvent | n
   }
 }
 
+/** מי ניצח ולמה, ברגע שזה נקבע (לבד או כשהשחקנים סימנו) */
+export function resultEvent(before: AppState, after: AppState): AnalyticsEvent | null {
+  const round = after.round;
+  if (!round?.winner || before.round?.winner) return null;
+  return {
+    name: 'round_result',
+    data: {
+      winner: round.winner,
+      reason: round.winReason ?? 'manual',
+      players: round.players.length,
+      imposters: round.imposterIds.length,
+      eliminated: round.eliminatedIds.length,
+      word: round.word,
+      word_category: round.category,
+    },
+  };
+}
+
 let roundStartedAt: number | undefined;
 let roundsThisVisit = 0;
 
 /** שולח אירוע לפעולה, ומוסיף משך סבב ומספר סבב בביקור */
 export function trackAction(state: AppState, action: Action) {
+  sendActionEvent(state, action);
+  const result = resultEvent(state, reducer(state, action));
+  if (result) track(result.name, result.data);
+}
+
+function sendActionEvent(state: AppState, action: Action) {
   const event = actionEvent(state, action);
   if (!event) return;
   const data: EventData = { ...event.data };
@@ -96,4 +165,8 @@ export function trackVisits(initial: AppState) {
       visibleSince = Date.now();
     }
   });
+}
+
+export function trackShare(result: string) {
+  track('share', { result });
 }

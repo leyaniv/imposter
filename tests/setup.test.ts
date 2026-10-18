@@ -1,19 +1,65 @@
 import { describe, expect, it } from 'vitest';
 import { defaultSettings } from '../src/game/reducer';
-import { chooseStarter, createPlayers, createRound, maxImposters } from '../src/game/setup';
+import {
+  blankPlayers,
+  chooseStarter,
+  createPlayers,
+  createRound,
+  duplicateNames,
+  maxImposters,
+  movePlayer,
+  nextPlayerId,
+} from '../src/game/setup';
 import type { Settings } from '../src/game/types';
 import { seededRng, testBank } from './helpers';
 
-const settings = (overrides: Partial<Settings> = {}): Settings => ({ ...defaultSettings, ...overrides });
+const settings = (overrides: Partial<Settings> & { playerCount?: number } = {}): Settings => {
+  const { playerCount, ...rest } = overrides;
+  return { ...defaultSettings, ...(playerCount ? { players: blankPlayers(playerCount) } : {}), ...rest };
+};
 
 describe('createPlayers', () => {
-  it('keeps seating order and trims names, leaving missing names empty', () => {
-    const players = createPlayers(settings({ playerCount: 3, names: [' דנה ', ''] }));
+  it('keeps seating order and ids, and trims names', () => {
+    const players = createPlayers(
+      settings({
+        players: [
+          { id: 'p7', name: ' דנה ' },
+          { id: 'p2', name: '' },
+          { id: 'p3', name: 'יוסי' },
+        ],
+      }),
+    );
     expect(players).toEqual([
-      { id: 'p1', name: 'דנה' },
+      { id: 'p7', name: 'דנה' },
       { id: 'p2', name: '' },
-      { id: 'p3', name: '' },
+      { id: 'p3', name: 'יוסי' },
     ]);
+  });
+});
+
+describe('player list', () => {
+  it('gives a new player an id that was never used in the list', () => {
+    expect(nextPlayerId([])).toBe('p1');
+    expect(
+      nextPlayerId([
+        { id: 'p1', name: '' },
+        { id: 'p5', name: '' },
+      ]),
+    ).toBe('p6');
+    expect(blankPlayers(3).map((p) => p.id)).toEqual(['p1', 'p2', 'p3']);
+  });
+
+  it('moves a player to another seat without changing ids', () => {
+    const players = blankPlayers(4);
+    expect(movePlayer(players, 0, 2).map((p) => p.id)).toEqual(['p2', 'p3', 'p1', 'p4']);
+    expect(movePlayer(players, 3, 0).map((p) => p.id)).toEqual(['p4', 'p1', 'p2', 'p3']);
+  });
+
+  it('finds duplicate names, ignoring spaces, case and empty names', () => {
+    const named = (...names: string[]) => names.map((name, i) => ({ id: `p${i + 1}`, name }));
+    expect(duplicateNames(named('דנה', 'יוסי', ' דנה', '', ''))).toEqual(['דנה']);
+    expect(duplicateNames(named('Dana', 'dana '))).toEqual(['Dana']);
+    expect(duplicateNames(named('דנה', 'יוסי'))).toEqual([]);
   });
 });
 

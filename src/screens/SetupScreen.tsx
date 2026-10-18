@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
+import PlayerList from '../components/PlayerList';
 import StickyActions from '../components/StickyActions';
-import Stepper from '../components/Stepper';
-import { MAX_PLAYERS, MIN_PLAYERS, MIN_PLAYERS_FOR_TWO_IMPOSTERS, maxImposters } from '../game/setup';
+import { MIN_PLAYERS_FOR_TWO_IMPOSTERS, maxImposters } from '../game/setup';
 import type { Settings } from '../game/types';
 import { toggleCategory } from '../game/words';
 import { he } from '../i18n/he';
@@ -38,12 +38,6 @@ export default function SetupScreen({
     return () => clearTimeout(timer);
   }, [justReset]);
 
-  const setName = (index: number, name: string) => {
-    const names = [...settings.names];
-    names[index] = name;
-    onChange({ names });
-  };
-
   const resetUsedWords = () => {
     onResetUsedWords();
     setJustReset(true);
@@ -51,7 +45,7 @@ export default function SetupScreen({
 
   const allSelected = settings.categories.length === 0;
   const isSelected = (category: string) => allSelected || settings.categories.includes(category);
-  const twoAllowed = maxImposters(settings.playerCount) === 2;
+  const twoAllowed = maxImposters(settings.players.length) === 2;
 
   return (
     <main className="screen">
@@ -59,37 +53,9 @@ export default function SetupScreen({
         <h1 className="heading">{he.setup.title}</h1>
 
         <section className="field">
-          <h2 className="label">{he.setup.playerCount}</h2>
-          <Stepper
-            value={settings.playerCount}
-            min={MIN_PLAYERS}
-            max={MAX_PLAYERS}
-            decreaseLabel={he.setup.fewer}
-            increaseLabel={he.setup.more}
-            onChange={(playerCount) => onChange({ playerCount })}
-          />
-        </section>
-
-        <section className="field">
-          <h2 className="label">{he.setup.names}</h2>
-          <p className="help">{he.setup.namesHelp}</p>
-          <ol className="name-list">
-            {Array.from({ length: settings.playerCount }, (_, i) => (
-              <li key={i}>
-                <span className="name-index">{i + 1}</span>
-                <input
-                  className="input"
-                  value={settings.names[i] ?? ''}
-                  placeholder={he.playerFallback(i + 1)}
-                  maxLength={16}
-                  enterKeyHint="next"
-                  autoComplete="off"
-                  aria-label={he.playerFallback(i + 1)}
-                  onChange={(e) => setName(i, e.target.value)}
-                />
-              </li>
-            ))}
-          </ol>
+          <h2 className="label">{he.setup.players(settings.players.length)}</h2>
+          <p className="help">{he.setup.playersHelp}</p>
+          <PlayerList players={settings.players} onChange={(players) => onChange({ players })} />
         </section>
 
         <section className="field">

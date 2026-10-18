@@ -10,11 +10,50 @@ export function maxImposters(playerCount: number): 1 | 2 {
   return playerCount >= MIN_PLAYERS_FOR_TWO_IMPOSTERS ? 2 : 1;
 }
 
+/** מזהה לשחקן חדש: p ואחריו מספר גדול מכל מספר שכבר בשימוש */
+export function nextPlayerId(players: readonly Player[]): string {
+  const max = players.reduce((acc, player) => {
+    const n = Number(/^p(\d+)$/.exec(player.id)?.[1] ?? 0);
+    return Math.max(acc, n);
+  }, 0);
+  return `p${max + 1}`;
+}
+
+export function addPlayer(players: readonly Player[], name = ''): Player[] {
+  return [...players, { id: nextPlayerId(players), name }];
+}
+
+/** שחקנים בלי שם, למשל לברירת המחדל */
+export function blankPlayers(count: number): Player[] {
+  let players: Player[] = [];
+  for (let i = 0; i < count; i++) players = addPlayer(players);
+  return players;
+}
+
+/** מזיז שחקן ממקום למקום בסדר הישיבה */
+export function movePlayer(players: readonly Player[], from: number, to: number): Player[] {
+  const result = [...players];
+  const [moved] = result.splice(from, 1);
+  result.splice(to, 0, moved);
+  return result;
+}
+
+/** שמות שמופיעים יותר מפעם אחת (בלי רווחים מסביב ובלי הבדל בין אותיות גדולות לקטנות) */
+export function duplicateNames(players: readonly Player[]): string[] {
+  const seen = new Map<string, string>();
+  const duplicates = new Set<string>();
+  for (const { name } of players) {
+    const trimmed = name.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) duplicates.add(seen.get(key)!);
+    else seen.set(key, trimmed);
+  }
+  return [...duplicates];
+}
+
 export function createPlayers(settings: Settings): Player[] {
-  return Array.from({ length: settings.playerCount }, (_, i) => ({
-    id: `p${i + 1}`,
-    name: (settings.names[i] ?? '').trim(),
-  }));
+  return settings.players.map(({ id, name }) => ({ id, name: name.trim() }));
 }
 
 export function chooseImposters(players: readonly Player[], count: number, rng: Rng): string[] {
@@ -57,6 +96,7 @@ export function createRound(
       revealIndex: 0,
       startIndex: chooseStarter(players, imposterIds, settings.imposterNeverStarts, rng),
       showCategory: settings.showCategory,
+      eliminatedIds: [],
     },
     usedWords: picked.usedWords,
   };

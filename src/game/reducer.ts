@@ -1,10 +1,12 @@
 import type { Rng } from './random';
-import { MAX_PLAYERS, MIN_PLAYERS, createRound, maxImposters } from './setup';
-import type { AppState, Round, Settings, WordEntry } from './types';
+import { addPoints, declareWinner, dismissReveal, eliminate, freeGuess, resolveLastGuess, roundPoints } from './rules';
+import { MAX_PLAYERS, MIN_PLAYERS, addPlayer, blankPlayers, createRound, maxImposters } from './setup';
+import { ROUND_PHASES, type AppState, type Player, type Round, type Settings, type WordEntry, type WordProblem, type Winner } from './types';
 
 export type Action =
   | { type: 'openSetup' }
   | { type: 'openRules' }
+  | { type: 'openScores' }
   | { type: 'goHome' }
   | { type: 'updateSettings'; settings: Partial<Settings> }
   | { type: 'resetUsedWords' }
@@ -12,11 +14,17 @@ export type Action =
   | { type: 'confirmPlayer' }
   | { type: 'nextPlayer' }
   | { type: 'announceStarter' }
-  | { type: 'endRound' };
+  | { type: 'eliminate'; playerId: string }
+  | { type: 'lastGuess'; correct: boolean }
+  | { type: 'dismissReveal' }
+  | { type: 'freeGuess'; correct: boolean }
+  | { type: 'endRound' }
+  | { type: 'setWinner'; winner: Winner }
+  | { type: 'reportWord'; problem: WordProblem }
+  | { type: 'resetScores' };
 
 export const defaultSettings: Settings = {
-  playerCount: 4,
-  names: [],
+  players: blankPlayers(4),
   categories: [],
   imposterCount: 1,
   imposterNeverStarts: true,
@@ -27,6 +35,7 @@ export const initialState: AppState = {
   phase: 'home',
   settings: defaultSettings,
   usedWords: [],
+  scores: {},
 };
 
 /**
@@ -38,13 +47,34 @@ export function startRoundAction(state: AppState, bank: readonly WordEntry[], rn
   return { type: 'startRound', round, usedWords };
 }
 
+/** בין MIN_PLAYERS ל-MAX_PLAYERS שחקנים */
+function clampPlayers(players: readonly Player[]): Player[] {
+  let result = players.slice(0, MAX_PLAYERS);
+  while (result.length < MIN_PLAYERS) result = addPlayer(result);
+  return result;
+}
+
 export function normalizeSettings(settings: Settings): Settings {
-  const playerCount = Math.min(MAX_PLAYERS, Math.max(MIN_PLAYERS, Math.round(settings.playerCount)));
+  const players = clampPlayers(settings.players);
   return {
     ...settings,
-    playerCount,
-    imposterCount: Math.min(settings.imposterCount, maxImposters(playerCount)) as 1 | 2,
+    players,
+    imposterCount: Math.min(settings.imposterCount, maxImposters(players.length)) as 1 | 2,
   };
+}
+
+/** האם הוסיפו או הסירו שחקנים (שינוי סדר או שם לא נחשב) */
+function sameRoster(a: readonly Player[], b: readonly Player[]): boolean {
+  const ids = new Set(a.map((player) => player.id));
+  return a.length === b.length && b.every((player) => ids.has(player.id));
+}
+
+/** מעדכן את הסבב, ומוסיף ניקוד ברגע שנקבע מי ניצח */
+function updateRound(state: AppState, update: (round: Round) => Round): AppState {
+  const round = update(state.round!);
+  if (round === state.round) return state;
+  const decided = !state.round!.winner && round.winner;
+  return { ...state, round, scores: decided ? addPoints(state.scores, roundPoints(round)) : state.scores };
 }
 
 export function reducer(state: AppState, action: Action): AppState {
@@ -55,11 +85,18 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'openRules':
       return { ...state, phase: 'rules', round: undefined };
 
+    case 'openScores':
+      return { ...state, phase: 'scores', round: undefined };
+
     case 'goHome':
       return { ...state, phase: 'home', round: undefined };
 
-    case 'updateSettings':
-      return { ...state, settings: normalizeSettings({ ...state.settings, ...action.settings }) };
+    case 'updateSettings': {
+      const settings = normalizeSettings({ ...state.settings, ...action.settings });
+      // שחקנים אחרים = ערב חדש, ומתחילים את הניקוד מאפס
+      const scores = sameRoster(state.settings.players, settings.players) ? state.scores : {};
+      return { ...state, settings, scores };
+    }
 
     case 'resetUsedWords':
       return { ...state, usedWords: [] };
@@ -82,8 +119,37 @@ export function reducer(state: AppState, action: Action): AppState {
       if (state.phase !== 'start' || !state.round) return state;
       return { ...state, round: { ...state.round, starterAnnounced: true } };
 
+    case 'eliminate':
+      if (state.phase !== 'start' || !state.round) return state;
+      return updateRound(state, (round) => eliminate(round, action.playerId));
+
+    case 'lastGuess':
+      if (state.phase !== 'start' || !state.round) return state;
+      return updateRound(state, (round) => resolveLastGuess(round, action.correct));
+
+    case 'dismissReveal':
+      if (state.phase !== 'start' || !state.round) return state;
+      return updateRound(state, dismissReveal);
+
+    case 'freeGuess': {
+      if (state.phase !== 'start' || !state.round) return state;
+      const next = updateRound(state, (round) => freeGuess(round, action.correct));
+      return next === state ? state : { ...next, phase: 'roundEnd' };
+    }
+
     case 'endRound':
       if (state.phase !== 'start' || !state.round) return state;
       return { ...state, phase: 'roundEnd' };
+
+    case 'setWinner':
+      if (state.phase !== 'roundEnd' || !state.round) return state;
+      return updateRound(state, (round) => declareWinner(round, action.winner));
+
+    case 'reportWord':
+      if (!ROUND_PHASES.includes(state.phase) || !state.round || state.round.wordReported) return state;
+      return { ...state, round: { ...state.round, wordReported: true } };
+
+    case 'resetScores':
+      return { ...state, scores: {} };
   }
 }
