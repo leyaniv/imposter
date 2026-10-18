@@ -1,8 +1,9 @@
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
+import { trackAction, trackVisits } from './analytics/events';
 import ConfirmDialog from './components/ConfirmDialog';
 import words from './data/words.he.json';
 import { cryptoRng } from './game/random';
-import { startRoundAction } from './game/reducer';
+import { startRoundAction, type Action } from './game/reducer';
 import { ROUND_PHASES, type WordEntry } from './game/types';
 import { countFreshWords, listCategories } from './game/words';
 import { useBackGuard } from './hooks/useBackGuard';
@@ -22,10 +23,17 @@ const bank: WordEntry[] = words;
 const allCategories = listCategories(bank);
 
 export default function App() {
-  const [state, dispatch] = usePersistentReducer();
+  const [state, dispatchGame] = usePersistentReducer();
+  const dispatch = (action: Action) => {
+    trackAction(state, action);
+    dispatchGame(action);
+  };
   const [confirmExit, setConfirmExit] = useState(false);
   const { phase, round } = state;
   const inRound = ROUND_PHASES.includes(phase);
+
+  // רק בפתיחה
+  useEffect(() => trackVisits(state), []);
 
   useWakeLock(phase === 'pass' || phase === 'reveal' || phase === 'start');
 
