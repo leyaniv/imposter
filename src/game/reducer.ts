@@ -7,6 +7,8 @@ export type Action =
   | { type: 'openSetup' }
   | { type: 'openRules' }
   | { type: 'openScores' }
+  | { type: 'openAbout' }
+  | { type: 'openChangelog' }
   | { type: 'goHome' }
   | { type: 'updateSettings'; settings: Partial<Settings> }
   | { type: 'resetUsedWords' }
@@ -87,6 +89,12 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case 'openScores':
       return { ...state, phase: 'scores', round: undefined };
+
+    case 'openAbout':
+      return { ...state, phase: 'about', round: undefined };
+
+    case 'openChangelog':
+      return { ...state, phase: 'changelog', round: undefined };
 
     case 'goHome':
       return { ...state, phase: 'home', round: undefined };

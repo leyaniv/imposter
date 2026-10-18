@@ -9,9 +9,10 @@ interface Props {
   onNewGame: () => void;
   onScores: () => void;
   onRules: () => void;
+  onAbout: () => void;
 }
 
-export default function HomeScreen({ showScores, onNewGame, onScores, onRules }: Props) {
+export default function HomeScreen({ showScores, onNewGame, onScores, onRules, onAbout }: Props) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -28,6 +29,15 @@ export default function HomeScreen({ showScores, onNewGame, onScores, onRules }:
 
   return (
     <main className="screen home">
+      <div className="top-bar">
+        <button className="btn btn-ghost btn-icon about-btn" onClick={onAbout}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" />
+            <path d="M12 11v6M12 7.5v.01" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+          </svg>
+          {he.home.about}
+        </button>
+      </div>
       <div className="screen-body center">
         <div className="logo" aria-hidden="true">
           {/* הפרצוף של מימי. נוצר מ-branding/mimi-icon.svg על ידי npm run icons */}

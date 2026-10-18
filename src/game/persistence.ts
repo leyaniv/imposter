@@ -16,7 +16,7 @@ import {
  */
 export const STATE_VERSION = 2;
 
-const PHASES: readonly Phase[] = ['home', 'rules', 'scores', 'setup', ...ROUND_PHASES];
+const PHASES: readonly Phase[] = ['home', 'rules', 'scores', 'about', 'changelog', 'setup', ...ROUND_PHASES];
 const WIN_REASONS: readonly WinReason[] = [
   'allCaught',
   'outnumbered',

@@ -6,3 +6,5 @@ dist
 # local branding references and comparison drafts
 branding/_ref
 branding/compare
+# התמונות המקוריות של מימי. האתר משתמש בעותק מוקטן: public/mimi-photo.jpg
+mimi/

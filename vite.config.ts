@@ -45,9 +45,15 @@ function serviceWorker(): Plugin {
   };
 }
 
+/** מספר הגרסה מ-package.json, שמוצג במסך "אודות" */
+const appVersion: string = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
+
 export default defineConfig({
   // נתיבים יחסיים, כדי שהאתר יעבוד גם בתת-תיקייה (למשל GitHub Pages)
   base: './',
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   plugins: [react(), serviceWorker()],
   server: {
     // פתוח לרשת המקומית כדי שאפשר יהיה להיכנס מהטלפון

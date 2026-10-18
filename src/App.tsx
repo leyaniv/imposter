@@ -16,6 +16,8 @@ import PassScreen from './screens/PassScreen';
 import RevealScreen from './screens/RevealScreen';
 import RoundEndScreen from './screens/RoundEndScreen';
 import RulesScreen from './screens/RulesScreen';
+import AboutScreen from './screens/AboutScreen';
+import ChangelogScreen from './screens/ChangelogScreen';
 import ScoresScreen from './screens/ScoresScreen';
 import SetupScreen from './screens/SetupScreen';
 import StartScreen from './screens/StartScreen';
@@ -41,6 +43,7 @@ export default function App() {
 
   useBackGuard(phase !== 'home', () => {
     if (inRound) setConfirmExit(true);
+    else if (phase === 'changelog') dispatch({ type: 'openAbout' });
     else dispatch({ type: 'goHome' });
   });
 
@@ -60,12 +63,26 @@ export default function App() {
           onNewGame={() => dispatch({ type: 'openSetup' })}
           onScores={() => dispatch({ type: 'openScores' })}
           onRules={() => dispatch({ type: 'openRules' })}
+          onAbout={() => dispatch({ type: 'openAbout' })}
         />
       );
       break;
 
     case 'rules':
       screen = <RulesScreen onBack={() => dispatch({ type: 'goHome' })} />;
+      break;
+
+    case 'about':
+      screen = (
+        <AboutScreen
+          onChangelog={() => dispatch({ type: 'openChangelog' })}
+          onBack={() => dispatch({ type: 'goHome' })}
+        />
+      );
+      break;
+
+    case 'changelog':
+      screen = <ChangelogScreen onBack={() => dispatch({ type: 'openAbout' })} />;
       break;
 
     case 'scores':

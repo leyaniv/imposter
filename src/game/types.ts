@@ -1,4 +1,14 @@
-export type Phase = 'home' | 'rules' | 'scores' | 'setup' | 'pass' | 'reveal' | 'start' | 'roundEnd';
+export type Phase =
+  | 'home'
+  | 'rules'
+  | 'scores'
+  | 'about'
+  | 'changelog'
+  | 'setup'
+  | 'pass'
+  | 'reveal'
+  | 'start'
+  | 'roundEnd';
 
 /** שלבים שיש בהם סבב פעיל */
 export const ROUND_PHASES: readonly Phase[] = ['pass', 'reveal', 'start', 'roundEnd'];

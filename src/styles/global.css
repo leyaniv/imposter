@@ -818,6 +818,69 @@ button {
   white-space: nowrap;
 }
 
+/* ---------- אודות ---------- */
+
+.home .top-bar {
+  justify-content: flex-start;
+}
+
+.about-btn {
+  width: auto;
+  min-height: 44px;
+  padding: 8px 12px;
+  font-size: 1rem;
+}
+
+.about-story p {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.about-mimi {
+  width: 64px;
+  height: auto;
+  align-self: center;
+  margin-bottom: 4px;
+}
+
+.about-photo {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.about-photo img {
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+}
+
+.about-photo figcaption {
+  margin: 0;
+  text-align: center;
+}
+
+.about-links {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* קישורים שנראים כמו כפתורים */
+a.btn {
+  text-decoration: none;
+  color: var(--text);
+}
+
+a.btn-ghost {
+  color: var(--muted);
+}
+
+.about-links .btn-ghost {
+  min-height: 44px;
+}
+
 /* ---------- חוקים ---------- */
 
 .rules-section {

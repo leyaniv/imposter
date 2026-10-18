@@ -18,6 +18,12 @@ export function actionEvent(state: AppState, action: Action): AnalyticsEvent | n
     case 'openScores':
       return { name: 'scores_open' };
 
+    case 'openAbout':
+      return { name: 'about_open' };
+
+    case 'openChangelog':
+      return { name: 'changelog_open' };
+
     case 'openSetup':
       return { name: 'setup_open', data: { from: state.phase } };
 
@@ -165,6 +171,11 @@ export function trackVisits(initial: AppState) {
       visibleSince = Date.now();
     }
   });
+}
+
+/** לחיצה על קישור החוצה במסך "אודות" */
+export function trackLink(target: 'github' | 'kofi' | 'issues') {
+  track('about_link', { target });
 }
 
 export function trackShare(result: string) {
