@@ -31,13 +31,27 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
 
-  // ניווט לכל כתובת באתר מקבל את index.html מהמטמון
+  // ניווט לכל כתובת באתר מקבל את דף הבית מהמטמון.
+  // שומרים את './' ולא את index.html, כי Cloudflare מפנה את index.html ל-/,
+  // ודפדפנים מסרבים להציג תשובה מופנית (redirect) שהגיעה מה-service worker (ERR_FAILED).
   if (request.mode === 'navigate') {
     event.respondWith(
-      caches.match(new URL('index.html', self.location).href, MATCH).then((cached) => cached || fetch(request)),
+      caches
+        .match(new URL('./', self.location).href, MATCH)
+        .then((cached) => (cached ? withoutRedirect(cached) : fetch(request))),
     );
     return;
   }
 
   event.respondWith(caches.match(request, MATCH).then((cached) => cached || fetch(request)));
 });
+
+/** ליתר ביטחון, אם שרת אחר כן הפנה את דף הבית: עותק נקי של התשובה, בלי סימון ה-redirect */
+async function withoutRedirect(response) {
+  if (!response.redirected) return response;
+  return new Response(await response.blob(), {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}

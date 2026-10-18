@@ -28,7 +28,8 @@ function serviceWorker(): Plugin {
       const files = listFiles(outDir)
         .map((file) => relative(outDir, file).replaceAll('\\', '/'))
         // woff ישן נטען רק בדפדפנים בלי woff2, אין טעם לשמור אותו
-        .filter((file) => file !== 'sw.js' && !file.endsWith('.woff'))
+        // index.html נשמר כ-'./' (ראו sw.template.js)
+        .filter((file) => file !== 'sw.js' && file !== 'index.html' && !file.endsWith('.woff'))
         .sort();
 
       const template = readFileSync(resolve(import.meta.dirname, 'src/pwa/sw.template.js'), 'utf8');
