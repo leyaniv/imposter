@@ -1,0 +1,8 @@
+node_modules
+dist
+*.local
+.wrangler
+
+# local branding references and comparison drafts
+branding/_ref
+branding/compare

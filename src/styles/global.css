@@ -1,0 +1,689 @@
+:root {
+  color-scheme: dark;
+  --bg: #13111c;
+  --surface: #1e1a2b;
+  --surface-2: #2a2540;
+  --border: #3a3354;
+  --text: #f5f2fb;
+  --muted: #a49cbc;
+  --accent: #ff4d6d;
+  --accent-text: #ffffff;
+  --danger: #e5484d;
+  --radius: 16px;
+  --font: 'Heebo', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+p,
+h1,
+h2 {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* ---------- פריסת מסך ---------- */
+
+.screen {
+  min-height: 100dvh;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: max(24px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+}
+
+.screen-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.screen-body.center {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 12px;
+}
+
+.screen-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* ---------- טיפוגרפיה ---------- */
+
+.title {
+  font-size: 3rem;
+  font-weight: 800;
+}
+
+.heading {
+  font-size: 1.6rem;
+  font-weight: 800;
+}
+
+.label {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.muted,
+.help {
+  color: var(--muted);
+}
+
+.help {
+  font-size: 0.9rem;
+  margin-top: -4px;
+}
+
+.big-name {
+  font-size: 2.4rem;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.progress {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-top: 8px;
+}
+
+.logo {
+  width: 136px;
+  height: 136px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  color: var(--accent);
+  margin-bottom: 8px;
+  box-shadow: 0 0 0 10px color-mix(in srgb, var(--surface-2) 40%, transparent);
+}
+
+.logo img {
+  width: 104px;
+  height: auto;
+}
+
+.title-accent {
+  color: var(--accent);
+}
+
+/* ורוד בהיר, כדי להבדיל בין שתי ה-"מי" */
+.title-accent-2 {
+  color: #ff9aae;
+}
+
+.home {
+  background: radial-gradient(120% 60% at 50% 0%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 70%);
+}
+
+.invisible {
+  visibility: hidden;
+}
+
+/* ---------- כפתורים ---------- */
+
+.btn {
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  border: none;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.btn-secondary {
+  background: var(--surface-2);
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+  min-height: 48px;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.btn:focus-visible,
+.icon-btn:focus-visible,
+.hold-card:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.icon-btn {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+}
+
+.icon-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+.top-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin: -16px -8px -24px;
+}
+
+/* ---------- הגדרות ---------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+.stepper-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: var(--surface-2);
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.stepper-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.stepper-value {
+  min-width: 3ch;
+  text-align: center;
+  font-size: 2.2rem;
+  font-weight: 800;
+}
+
+.name-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.name-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.name-index {
+  width: 2ch;
+  color: var(--muted);
+  text-align: center;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem; /* 16px ומעלה, כדי ש-iOS לא יעשה זום */
+}
+
+.input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.link-btn {
+  border: none;
+  background: none;
+  padding: 8px 0;
+  color: var(--accent);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.link-btn:disabled {
+  color: var(--muted);
+  opacity: 0.5;
+  cursor: default;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  min-height: 40px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.chip-on {
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.segment {
+  min-height: 48px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.segment-on {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.segment:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.category-tag {
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.notice {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 1.05rem;
+}
+
+.toggle input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--accent);
+}
+
+/* ---------- חשיפה ---------- */
+
+.result-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 32px 20px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.result-card {
+  gap: 8px;
+  padding: 20px;
+}
+
+.reveal-label {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.reveal-word {
+  font-size: 2.8rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+
+.reveal-footer {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.hold-card {
+  width: 100%;
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 2px dashed var(--border);
+  touch-action: none;
+  cursor: pointer;
+  transition: border-color 150ms;
+}
+
+.hold-card.held {
+  border-style: solid;
+  border-color: var(--accent);
+}
+
+.hold-content,
+.hold-cover {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.hold-content {
+  animation: fade-in 120ms ease-out;
+}
+
+.eye-icon {
+  width: 56px;
+  height: 56px;
+  color: var(--accent);
+}
+
+.hold-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.hold-sub {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.imposter-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ---------- מי מתחיל ---------- */
+
+.player-circle {
+  position: relative;
+  width: min(100%, 340px);
+  aspect-ratio: 1;
+  margin: 8px 0;
+}
+
+.clockwise-arrow {
+  position: absolute;
+  inset: 25%;
+  color: var(--border);
+}
+
+.seat {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  max-width: 26%;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.seat {
+  transition: background-color 80ms, color 80ms;
+}
+
+.compact .seat {
+  padding: 4px 8px;
+  font-size: 0.75rem;
+}
+
+.seat-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+.confirm-text {
+  text-align: center;
+  color: var(--muted);
+}
+
+/* ---------- שכחתי ---------- */
+
+.player-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.player-grid .btn {
+  min-height: 52px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- חוקים ---------- */
+
+.rules-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.rules-section ul {
+  margin: 0;
+  padding-inline-start: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* פס כפתורים קבוע בתחתית מסך שנגלל. רוחב מלא עד הקצוות, רקע אטום */
+.sticky-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin: 0 -16px calc(-1 * max(16px, env(safe-area-inset-bottom)));
+  padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+  background: var(--bg);
+  border-top: 1px solid transparent;
+  transition:
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+/* יש עוד תוכן שנגלל מתחת לפס: קו הפרדה וצל, כדי שיהיה ברור מה קבוע ומה נגלל */
+.sticky-actions.raised {
+  border-top-color: var(--border);
+  box-shadow: 0 -12px 24px rgb(0 0 0 / 0.5);
+}
+
+/* ---------- חלון אישור ---------- */
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  background: rgb(0 0 0 / 0.6);
+  animation: fade-in 150ms ease-out;
+}
+
+.dialog {
+  width: 100%;
+  max-width: 448px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 24px 16px max(16px, env(safe-area-inset-bottom));
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  animation: slide-up 180ms ease-out;
+}
+
+.dialog-text {
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+/* ---------- אנימציות ---------- */
+
+.screen {
+  animation: screen-in 220ms ease-out;
+}
+
+.pop {
+  animation: pop 320ms cubic-bezier(0.3, 1.6, 0.6, 1);
+}
+
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

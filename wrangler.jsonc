@@ -1,0 +1,11 @@
+// הגדרות ההעלאה ל-Cloudflare. מעלים עם: npm run deploy
+// כרגע זה רק אתר סטטי (התיקייה dist). בגרסת מרובי המשתתפים יתווסף כאן קוד שרת ו-Durable Objects.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "imposter",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
