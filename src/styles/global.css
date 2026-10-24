@@ -218,6 +218,11 @@ button {
   font-size: 1rem;
 }
 
+/* כפתור אחד בשורה (למשל אצל מי שלא מארח): על כל הרוחב, במרכז */
+.actions-row > :only-child {
+  grid-column: 1 / -1;
+}
+
 .toast {
   position: fixed;
   inset-inline: 16px;

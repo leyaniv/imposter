@@ -95,10 +95,11 @@ export default function LobbyScreen({
         <ConnectionNotice status={status} />
 
         <div className="room-code-card">
-          <p className="muted">{he.online.lobby.code}</p>
+          <p className="muted">{isHost ? he.online.lobby.code : he.online.lobby.waitingTitle}</p>
           <p className="room-code" dir="ltr">
             {formatCode(state.code)}
           </p>
+          {!isHost && <p className="help">{he.online.lobby.waitingHost}</p>}
           <button className="btn btn-secondary" onClick={share}>
             {he.online.lobby.share}
           </button>
