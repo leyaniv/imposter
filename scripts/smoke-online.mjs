@@ -141,7 +141,8 @@ async function main() {
     seats.push({ p, id: s.you, role: s.round.role });
   }
   for (const { p } of seats) p.send({ type: 'role:seen' });
-  await dana.stateWhere((s) => s.phase === 'play');
+  // כל טלפון מחכה למצב "play" של הסבב הזה, ולא למצב שנשאר בתור מהסבב הקודם
+  for (const { p } of seats) await p.stateWhere((s) => s.phase === 'play' && s.round?.number === 2);
   const imposter = seats.find((s) => s.role.kind === 'imposter');
   const crewSeats = seats.filter((s) => s.role.kind === 'crew');
 
