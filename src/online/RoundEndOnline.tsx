@@ -1,3 +1,4 @@
+import Scoreboard from '../components/Scoreboard';
 import StickyActions from '../components/StickyActions';
 import WordReport from '../components/WordReport';
 import type { WordProblem } from '../game/types';
@@ -14,11 +15,22 @@ interface Props {
   onReport: (problem: WordProblem) => void;
   onNext: () => void;
   onLobby: () => void;
+  onResetScores: () => void;
   onAskLeave: () => void;
 }
 
 /** סוף הסבב: המילה, המתחזים והרמזים שלהם. המארח ממשיך לסבב נוסף או חוזר ללובי */
-export default function RoundEndOnline({ state, round, status, reported, onReport, onNext, onLobby, onAskLeave }: Props) {
+export default function RoundEndOnline({
+  state,
+  round,
+  status,
+  reported,
+  onReport,
+  onNext,
+  onLobby,
+  onResetScores,
+  onAskLeave,
+}: Props) {
   const reveal = round.reveal!;
   const isHost = state.hostId === state.you;
   const nameOf = (id: string) => round.players.find((player) => player.id === id)?.name ?? '';
@@ -29,6 +41,14 @@ export default function RoundEndOnline({ state, round, status, reported, onRepor
         <ConnectionNotice status={status} />
         <h1 className="heading">{he.roundEnd.title}</h1>
         {reveal.imposterLeft && <p className="notice">{he.online.round.imposterLeft(reveal.imposters.length)}</p>}
+        {reveal.winner && (
+          <div className="winner-banner pop">
+            <p className="winner-title">
+              {reveal.winner === 'crew' ? he.winner.crew : he.winner.imposters(reveal.imposters.length)}
+            </p>
+            {reveal.winReason && <p className="muted">{he.winner.reason[reveal.winReason](reveal.imposters.length)}</p>}
+          </div>
+        )}
 
         <div className="result-card">
           <p className="muted">{he.roundEnd.word}</p>
@@ -44,6 +64,13 @@ export default function RoundEndOnline({ state, round, status, reported, onRepor
             </div>
           ))}
         </div>
+
+        <Scoreboard
+          players={state.players}
+          scores={state.scores}
+          gains={reveal.points}
+          onReset={isHost ? onResetScores : undefined}
+        />
 
         <div className="feedback">
           {!reported && <p className="help">{he.feedback.title}</p>}

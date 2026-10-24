@@ -13,7 +13,8 @@ interface Props {
   gains?: Record<string, number>;
   /** כותרת "ניקוד" בכרטיס. במסך הניקוד היא כבר כותרת המסך */
   showTitle?: boolean;
-  onReset: () => void;
+  /** בלי onReset אין כפתור איפוס (למשל אצל מי שלא מארח את החדר) */
+  onReset?: () => void;
 }
 
 export function hasScores(players: readonly Player[], scores: Record<string, number>): boolean {
@@ -33,9 +34,11 @@ export default function Scoreboard({ players, scores, gains = {}, showTitle = tr
     <section className="result-card scoreboard">
       <div className="label-row">
         {showTitle ? <h2 className="label">{he.scores.title}</h2> : <span />}
-        <button className="link-btn" onClick={() => setConfirmReset(true)}>
-          {he.scores.reset}
-        </button>
+        {onReset && (
+          <button className="link-btn" onClick={() => setConfirmReset(true)}>
+            {he.scores.reset}
+          </button>
+        )}
       </div>
       <ol className="score-list">
         {rows.map(({ player, index, score }) => (
@@ -55,7 +58,7 @@ export default function Scoreboard({ players, scores, gains = {}, showTitle = tr
           cancelLabel={he.common.cancel}
           onConfirm={() => {
             setConfirmReset(false);
-            onReset();
+            onReset?.();
           }}
           onCancel={() => setConfirmReset(false)}
         />

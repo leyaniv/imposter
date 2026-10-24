@@ -34,8 +34,8 @@ function win(round: Round, winner: Winner, winReason: WinReason): Round {
   return { ...round, winner, winReason, guessPending: undefined };
 }
 
-/** אחרי הדחה או ניחוש שגוי: האם המשחק נגמר */
-function checkWinner(round: Round): Round {
+/** אחרי הדחה, ניחוש שגוי, או שחקן שיצא: האם המשחק נגמר */
+export function checkWinner(round: Round): Round {
   const { imposters, crew } = remaining(round);
   if (imposters === 0) return win(round, 'crew', 'allCaught');
   if (imposters >= crew) return win(round, 'imposters', 'outnumbered');

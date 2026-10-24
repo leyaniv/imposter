@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
 const BASE = process.argv[2] ?? 'http://localhost:5182';
-const VERSION = 2;
+const VERSION = 3;
 
 /** טלפון אחד: WebSocket שאוסף את ההודעות */
 async function phone(code) {
@@ -128,6 +128,50 @@ async function main() {
   dana.send({ type: 'round:lobby' });
   await yossi2.stateWhere((s) => s.phase === 'lobby' && !s.round);
   console.log('round ok');
+
+  // סבב עד ניצחון, עם שחקנית רביעית: הדחה של שחקן רגיל, הדחה של המתחזה, ניחוש אחרון שגוי, ניקוד
+  const michal = await phone(code);
+  michal.send({ type: 'room:join', name: 'מיכל', token: randomUUID(), version: VERSION });
+  await michal.next((m) => m.type === 'welcome');
+  dana.send({ type: 'game:start' });
+  const four = [dana, yossi2, roni, michal];
+  const seats = [];
+  for (const p of four) {
+    const s = await p.stateWhere((s) => s.phase === 'reveal' && s.round?.number === 2);
+    seats.push({ p, id: s.you, role: s.round.role });
+  }
+  for (const { p } of seats) p.send({ type: 'role:seen' });
+  await dana.stateWhere((s) => s.phase === 'play');
+  const imposter = seats.find((s) => s.role.kind === 'imposter');
+  const crewSeats = seats.filter((s) => s.role.kind === 'crew');
+
+  // שחקן רגיל מודח: כולם בעד
+  const [opener, victim, third] = crewSeats;
+  opener.p.send({ type: 'vote:start', targetId: victim.id });
+  await victim.p.stateWhere((s) => s.round?.vote?.targetId === victim.id);
+  for (const s of [third, imposter]) s.p.send({ type: 'vote:cast', yes: true });
+  const out = await opener.p.stateWhere((s) => s.round?.revealed?.playerId === victim.id);
+  assert.equal(out.round.revealed.imposter, false);
+  assert.equal(out.round.lastVote.eliminated, true);
+  third.p.send({ type: 'reveal:continue' });
+  await opener.p.stateWhere((s) => s.round?.lastVote && !s.round.revealed);
+
+  // המתחזה מודח, מנחש, ושחקן רגיל מסמן "שגוי"
+  opener.p.send({ type: 'vote:start', targetId: imposter.id });
+  await third.p.stateWhere((s) => s.round?.vote?.targetId === imposter.id);
+  third.p.send({ type: 'vote:cast', yes: true });
+  const caught = await third.p.stateWhere((s) => s.round?.guessPending);
+  assert.equal(caught.round.revealed.imposter, true);
+  victim.p.send({ type: 'guess:mark', correct: false });
+  const won = await imposter.p.stateWhere((s) => s.phase === 'roundEnd');
+  assert.equal(won.round.reveal.winner, 'crew');
+  assert.equal(won.round.reveal.winReason, 'allCaught');
+  for (const s of crewSeats) assert.equal(won.scores[s.id], 1, 'every crew member gets a point');
+  assert.equal(won.scores[imposter.id] ?? 0, 0);
+  dana.send({ type: 'round:lobby' });
+  michal.send({ type: 'room:leave' });
+  await dana.stateWhere((s) => s.phase === 'lobby' && s.players.length === 3);
+  console.log('vote, last guess and scores ok');
 
   // join חוזר עם אותו טוקן (התשובה הקודמת לא הגיעה) לא יוצר שחקן כפול
   const roni2 = await phone(code);

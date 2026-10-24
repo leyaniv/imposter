@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import ConfirmDialog from '../components/ConfirmDialog';
 import DragHandle from '../components/DragHandle';
 import GameSettingsFields from '../components/GameSettingsFields';
+import Scoreboard from '../components/Scoreboard';
 import StickyActions from '../components/StickyActions';
 import { MIN_PLAYERS, maxImposters } from '../game/setup';
 import { useDragReorder } from '../hooks/useDragReorder';
@@ -19,6 +20,7 @@ interface Props {
   onKick: (playerId: string) => void;
   onSettings: (settings: RoomSettings) => void;
   onStart: () => void;
+  onResetScores: () => void;
   onAskLeave: () => void;
 }
 
@@ -34,13 +36,24 @@ function settingsSummary(settings: RoomSettings, playerCount: number): string {
     he.setup.imposters(imposters),
     settings.imposterNeverStarts && he.online.lobby.imposterNeverStarts,
     settings.showCategory && he.online.lobby.showCategory,
+    settings.secretVote && he.online.lobby.secretVote,
   ]
     .filter(Boolean)
     .join(' · ');
 }
 
 /** הלובי: הקוד, קישור לשיתוף, מי בחדר לפי סדר הישיבה, וההגדרות. המארח מסדר, מוציא, בוחר הגדרות ומתחיל */
-export default function LobbyScreen({ state, status, allCategories, onReorder, onKick, onSettings, onStart, onAskLeave }: Props) {
+export default function LobbyScreen({
+  state,
+  status,
+  allCategories,
+  onReorder,
+  onKick,
+  onSettings,
+  onStart,
+  onResetScores,
+  onAskLeave,
+}: Props) {
   const isHost = state.hostId === state.you;
   // בזמן גרירה הרשימה זזה מיד אצלנו, והשרת מקבל את הסדר החדש בסוף הגרירה
   const [localOrder, setLocalOrder] = useState<PublicPlayer[] | null>(null);
@@ -119,13 +132,28 @@ export default function LobbyScreen({ state, status, allCategories, onReorder, o
           </ol>
         </section>
 
+        <Scoreboard players={state.players} scores={state.scores} onReset={isHost ? onResetScores : undefined} />
+
         {isHost ? (
-          <GameSettingsFields
-            settings={state.settings}
-            playerCount={state.players.length}
-            allCategories={allCategories}
-            onChange={(change) => onSettings({ ...state.settings, ...change })}
-          />
+          <>
+            <GameSettingsFields
+              settings={state.settings}
+              playerCount={state.players.length}
+              allCategories={allCategories}
+              onChange={(change) => onSettings({ ...state.settings, ...change })}
+            />
+            <div className="field">
+              <label className="toggle">
+                <input
+                  type="checkbox"
+                  checked={state.settings.secretVote}
+                  onChange={(e) => onSettings({ ...state.settings, secretVote: e.target.checked })}
+                />
+                <span>{he.online.lobby.secretVote}</span>
+              </label>
+              <p className="help">{he.online.lobby.secretVoteHelp}</p>
+            </div>
+          </>
         ) : (
           <section className="field">
             <h2 className="label">{he.online.lobby.settings}</h2>

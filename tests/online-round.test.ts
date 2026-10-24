@@ -23,7 +23,7 @@ function ok<T extends object>(result: T): Exclude<T, { error: ErrorCode }> {
 
 /** p1 הוא המארח */
 function send(room: Room, playerId: string, message: ClientMessage, seed = 1): Room {
-  return ok(act(room, playerId, message, NOW, seededRng(seed))).room;
+  return ok(act(room, playerId, message, NOW, { rng: seededRng(seed) })).room;
 }
 
 function started(count: number, seed = 1): Room {
@@ -43,14 +43,14 @@ const allIn = (room: Room) => room.players.map((player) => player.id);
 describe('settings', () => {
   it('lets only the host change them, and only in the lobby', () => {
     const room = roomWith(3);
-    const settings = { categories: [], imposterCount: 2 as const, imposterNeverStarts: false, showCategory: true };
+    const settings = { categories: [], imposterCount: 2 as const, imposterNeverStarts: false, showCategory: true, secretVote: false };
     expect(act(room, 'p2', { type: 'lobby:settings', settings }, NOW)).toEqual({ error: 'not_host' });
     expect(send(room, 'p1', { type: 'lobby:settings', settings }).settings).toEqual(settings);
     expect(act(started(3), 'p1', { type: 'lobby:settings', settings }, NOW)).toEqual({ error: 'wrong_phase' });
   });
 
   it('drops categories that are not in the word bank', () => {
-    const settings = { categories: ['ספורט', 'לא קיים'], imposterCount: 1 as const, imposterNeverStarts: true, showCategory: false };
+    const settings = { categories: ['ספורט', 'לא קיים'], imposterCount: 1 as const, imposterNeverStarts: true, showCategory: false, secretVote: false };
     expect(send(roomWith(3), 'p1', { type: 'lobby:settings', settings }).settings.categories).toEqual(['ספורט']);
   });
 });
@@ -69,7 +69,7 @@ describe('starting a round', () => {
   });
 
   it('uses two imposters only from 7 players', () => {
-    const two = { categories: [], imposterCount: 2 as const, imposterNeverStarts: true, showCategory: false };
+    const two = { categories: [], imposterCount: 2 as const, imposterNeverStarts: true, showCategory: false, secretVote: false };
     const six = send(send(roomWith(6), 'p1', { type: 'lobby:settings', settings: two }), 'p1', { type: 'game:start' });
     const seven = send(send(roomWith(7), 'p1', { type: 'lobby:settings', settings: two }), 'p1', { type: 'game:start' });
     expect(six.round!.imposterIds).toHaveLength(1);
@@ -174,7 +174,7 @@ describe('🔒 what each phone sees', () => {
   function* states(): Generator<{ room: Room; id: string; state: RoomState }> {
     for (const count of [3, 5, 8]) {
       for (let seed = 1; seed <= 15; seed++) {
-        const twoImposters = { categories: [], imposterCount: 2 as const, imposterNeverStarts: false, showCategory: seed % 2 === 0 };
+        const twoImposters = { categories: [], imposterCount: 2 as const, imposterNeverStarts: false, showCategory: seed % 2 === 0, secretVote: false };
         let room = send(roomWith(count), 'p1', { type: 'lobby:settings', settings: twoImposters });
         room = send(room, 'p1', { type: 'game:start' }, seed);
         const phases = [room, send(room, 'p1', { type: 'reveal:skip' })];
@@ -243,7 +243,7 @@ describe('older rooms and messages', () => {
       ),
     ).toEqual({
       type: 'lobby:settings',
-      settings: { categories: ['ספורט'], imposterCount: 2, imposterNeverStarts: true, showCategory: false },
+      settings: { categories: ['ספורט'], imposterCount: 2, imposterNeverStarts: true, showCategory: false, secretVote: false },
     });
     expect(parseMessage('{"type":"lobby:settings","settings":{"categories":[],"imposterCount":3}}')).toBeNull();
   });

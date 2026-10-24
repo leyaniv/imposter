@@ -1,6 +1,17 @@
 import { DurableObject } from 'cloudflare:workers';
 import type { ClientMessage, ErrorCode, LeftReason, RoomSettings, ServerMessage } from '../src/online/protocol';
-import { act, cleanupAt, createRoom, join, parseMessage, rejoin, upgradeRoom, view, type Room as RoomData } from './logic';
+import {
+  act,
+  cleanupAt,
+  createRoom,
+  join,
+  parseMessage,
+  rejoin,
+  settleVote,
+  upgradeRoom,
+  view,
+  type Room as RoomData,
+} from './logic';
 
 /** מה שמוצמד לכל WebSocket. נשמר גם כשהחדר "ישן" */
 interface Attachment {
@@ -59,7 +70,7 @@ export class Room extends DurableObject<Env> {
     }
     if (!playerId) return send(ws, { type: 'error', code: 'not_joined' });
 
-    const result = act(this.room, playerId, message, Date.now());
+    const result = act(this.room, playerId, message, Date.now(), { connected: this.connectedIds() });
     if ('error' in result) return this.reject(ws, playerId, result.error);
 
     await this.save(result.room);
@@ -68,11 +79,22 @@ export class Room extends DurableObject<Env> {
   }
 
   async webSocketClose(ws: WebSocket) {
-    // הטלפון התנתק (ננעל, ריענון וכו'). השחקן נשאר בחדר, ורק מסומן כמנותק
-    this.broadcast(ws);
+    await this.disconnected(ws);
   }
 
   async webSocketError(ws: WebSocket) {
+    await this.disconnected(ws);
+  }
+
+  /**
+   * הטלפון התנתק (ננעל, ריענון וכו'). השחקן נשאר בחדר, ורק מסומן כמנותק.
+   * בהצבעה פתוחה מנותקים לא נספרים, אז אולי עכשיו כל המחוברים כבר הצביעו
+   */
+  private async disconnected(ws: WebSocket) {
+    if (this.room?.vote) {
+      const settled = settleVote(this.room, this.connectedIds(ws));
+      if (settled !== this.room) await this.save(settled);
+    }
     this.broadcast(ws);
   }
 

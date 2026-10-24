@@ -1082,6 +1082,53 @@ a.btn-ghost {
   border: 1px solid var(--border);
 }
 
+/* הצבעה: בעד/נגד גדולים, ורשימת קולות בהצבעה גלויה */
+.vote-choice {
+  width: 100%;
+}
+
+.vote-choice .segment {
+  min-height: 64px;
+  font-size: 1.3rem;
+}
+
+.vote-choice .segment-on {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.vote-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.vote-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.vote-mark {
+  color: var(--muted);
+}
+
+.vote-yes {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.vote-no {
+  color: var(--danger);
+  font-weight: 600;
+}
+
 .connection-notice {
   align-self: center;
 }

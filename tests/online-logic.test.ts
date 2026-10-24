@@ -178,7 +178,8 @@ describe('view', () => {
       ],
       you: 'p2',
       phase: 'lobby',
-      settings: { categories: [], imposterCount: 1, imposterNeverStarts: true, showCategory: false },
+      settings: { categories: [], imposterCount: 1, imposterNeverStarts: true, showCategory: false, secretVote: false },
+      scores: {},
     });
     expect(JSON.stringify(state)).not.toContain('t-');
     expect(JSON.stringify(state)).not.toContain('token');

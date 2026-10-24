@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { track, type EventData } from '../analytics/posthog';
 import ConfirmDialog from '../components/ConfirmDialog';
 import words from '../data/words.he.json';
@@ -10,14 +10,19 @@ import { loadSavedSettings } from '../hooks/usePersistentReducer';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { he } from '../i18n/he';
 import { reloadToLatest } from '../pwa/registerServiceWorker';
+import { playRevealSound, playVoteSound, unlockAudio } from '../ui/sound';
+import { vibrate } from '../ui/vibrate';
 import { createRoom } from './connection';
 import EntryScreen from './EntryScreen';
+import FreeGuessOnline from './FreeGuessOnline';
 import LobbyScreen from './LobbyScreen';
 import MessageScreen from './MessageScreen';
+import OutcomeOnline from './OutcomeOnline';
 import PlayOnline from './PlayOnline';
 import { isRoomCode, type ClientMessage, type ErrorCode, type RoomSettings, type RoomState } from './protocol';
 import RevealOnline from './RevealOnline';
 import RoundEndOnline from './RoundEndOnline';
+import VoteOnline from './VoteOnline';
 import { clearSession, loadName, loadSession, saveName } from './session';
 import { useRoom, type RoomEnd } from './useRoom';
 
@@ -60,7 +65,7 @@ function syncUrl(view: View) {
 /** חדר חדש מתחיל מההגדרות האחרונות של המארח במצב הטלפון האחד */
 function initialSettings(): RoomSettings {
   const { categories, imposterCount, imposterNeverStarts, showCategory } = loadSavedSettings();
-  return { categories, imposterCount, imposterNeverStarts, showCategory };
+  return { categories, imposterCount, imposterNeverStarts, showCategory, secretVote: false };
 }
 
 /** מצב "כל אחד בטלפון שלו": פתיחת חדר, הצטרפות, לובי וסבבים */
@@ -69,6 +74,12 @@ export default function OnlineApp() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => syncUrl(view), [view]);
+
+  // צליל אפשר להשמיע רק אחרי נגיעה בדף. הנגיעה הראשונה "פותחת" את הצלילים, כדי שצליל ההצבעה הראשון יישמע
+  useEffect(() => {
+    document.addEventListener('pointerdown', unlockAudio, { once: true });
+    return () => document.removeEventListener('pointerdown', unlockAudio);
+  }, []);
 
   const create = async (name: string) => {
     saveName(name.trim());
@@ -157,6 +168,80 @@ function roundStartEvent(state: RoomState, again: boolean): EventData {
   };
 }
 
+/** צליל ורטט כשנפתחת הצבעה (חוץ ממי שפתח, ואצל הנאשם רטט חזק יותר), וצליל בחשיפה של מי שהודח */
+function useRoundSounds(state: RoomState | null) {
+  const voteId = state?.round?.vote?.id;
+  const revealedId = state?.round?.revealed && `${state.round.number}:${state.round.revealed.playerId}`;
+  const seenVote = useRef(voteId);
+  const seenReveal = useRef(revealedId);
+
+  useEffect(() => {
+    const vote = state?.round?.vote;
+    if (vote && vote.id !== seenVote.current && vote.startedBy !== state.you) {
+      playVoteSound();
+      vibrate(vote.targetId === state.you ? [250, 120, 250] : 80);
+    }
+    seenVote.current = voteId;
+  }, [voteId]);
+
+  useEffect(() => {
+    if (revealedId && revealedId !== seenReveal.current) playRevealSound();
+    seenReveal.current = revealedId;
+  }, [revealedId]);
+}
+
+/**
+ * אירועי אנליטיקה של הסבב, מהטלפון של המארח בלבד, כדי שכל אירוע ייספר פעם אחת.
+ * מזהים אותם לפי השינוי במצב שהשרת שלח.
+ */
+function useHostAnalytics(state: RoomState | null) {
+  const previous = useRef(state);
+  useEffect(() => {
+    const before = previous.current?.round;
+    previous.current = state;
+    const round = state?.round;
+    if (!state || !round || state.hostId !== state.you || before?.number !== round.number) return;
+    const players = round.players.length;
+
+    if (round.lastVote && round.lastVote.id !== before.lastVote?.id) {
+      track('vote_result', {
+        mode: 'online',
+        eliminated: round.lastVote.eliminated,
+        yes: round.lastVote.yes,
+        no: round.lastVote.no,
+        secret: state.settings.secretVote,
+      });
+    }
+    if (round.revealed && round.revealed.playerId !== before.revealed?.playerId) {
+      track('player_eliminated', {
+        mode: 'online',
+        was_imposter: round.revealed.imposter,
+        players,
+        eliminated: round.eliminatedIds.length,
+      });
+    }
+    const reveal = round.reveal;
+    if (before.guessPending && !round.guessPending) {
+      track('last_guess', { mode: 'online', correct: reveal?.winReason === 'lastGuess' });
+    }
+    if (reveal?.winner && !before.reveal?.winner) {
+      if (reveal.winReason === 'freeGuessRight' || reveal.winReason === 'freeGuessWrong') {
+        track('free_guess', { mode: 'online', correct: reveal.winReason === 'freeGuessRight' });
+      }
+      track('round_result', {
+        mode: 'online',
+        winner: reveal.winner,
+        reason: reveal.winReason ?? '',
+        players,
+        imposters: round.imposterCount,
+        eliminated: round.eliminatedIds.length,
+        word: reveal.word,
+        word_category: reveal.category,
+      });
+    }
+  }, [state]);
+}
+
 /** החדר עצמו: מחובר כל עוד המסך הזה מוצג, ומציג את המסך של השלב הנוכחי */
 function RoomView({ code, name, onEnd }: { code: string; name: string; onEnd: (end: RoomEnd) => void }) {
   const { state, status, end, send } = useRoom(code, name);
@@ -165,6 +250,8 @@ function RoomView({ code, name, onEnd }: { code: string; name: string; onEnd: (e
   const [reportedRound, setReportedRound] = useState(0);
 
   useWakeLock(true);
+  useRoundSounds(state);
+  useHostAnalytics(state);
   // "חזרה" בטלפון לא עוזב את החדר בטעות. במקום זה שואלים אם לצאת
   useBackGuard(true, () => setAskLeave(true));
 
@@ -242,6 +329,7 @@ function RoomView({ code, name, onEnd }: { code: string; name: string; onEnd: (e
         onKick={(playerId) => send({ type: 'lobby:kick', playerId })}
         onSettings={(settings) => send({ type: 'lobby:settings', settings })}
         onStart={() => hostAction({ type: 'game:start' })}
+        onResetScores={() => send({ type: 'scores:reset' })}
         onAskLeave={() => setAskLeave(true)}
       />
     );
@@ -256,6 +344,7 @@ function RoomView({ code, name, onEnd }: { code: string; name: string; onEnd: (e
         onReport={report}
         onNext={() => hostAction({ type: 'round:next' })}
         onLobby={() => send({ type: 'round:lobby' })}
+        onResetScores={() => send({ type: 'scores:reset' })}
         onAskLeave={() => setAskLeave(true)}
       />
     );
@@ -279,6 +368,44 @@ function RoomView({ code, name, onEnd }: { code: string; name: string; onEnd: (e
         onSkip={() => send({ type: 'reveal:skip' })}
       />
     );
+  } else if (round.vote) {
+    screen = (
+      <VoteOnline
+        key={`vote-${round.vote.id}`}
+        state={state}
+        round={round}
+        vote={round.vote}
+        status={status}
+        onCast={(yes) => send({ type: 'vote:cast', yes })}
+        onCancel={() => send({ type: 'vote:cancel' })}
+        onClose={() => send({ type: 'vote:close' })}
+        onAskLeave={() => setAskLeave(true)}
+      />
+    );
+  } else if (round.revealed) {
+    screen = (
+      <OutcomeOnline
+        key={`outcome-${round.revealed.playerId}`}
+        state={state}
+        round={round}
+        status={status}
+        onMark={(correct) => send({ type: 'guess:mark', correct })}
+        onContinue={() => send({ type: 'reveal:continue' })}
+        onAskLeave={() => setAskLeave(true)}
+      />
+    );
+  } else if (round.freeGuess) {
+    screen = (
+      <FreeGuessOnline
+        key="free-guess"
+        state={state}
+        round={round}
+        status={status}
+        onMark={(correct) => send({ type: 'guess:mark', correct })}
+        onCancel={() => send({ type: 'guess:cancel' })}
+        onAskLeave={() => setAskLeave(true)}
+      />
+    );
   } else {
     screen = (
       <PlayOnline
@@ -288,6 +415,8 @@ function RoomView({ code, name, onEnd }: { code: string; name: string; onEnd: (e
         status={status}
         reported={reported}
         onReport={report}
+        onVote={(targetId) => send({ type: 'vote:start', targetId })}
+        onFreeGuess={() => send({ type: 'guess:start' })}
         onEndRound={() => hostAction({ type: 'round:end' })}
         onAskLeave={() => setAskLeave(true)}
       />

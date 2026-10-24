@@ -6,8 +6,9 @@
 /**
  * עולה בכל שינוי לא תואם בהודעות. טלפון עם גרסה אחרת מקבל outdated ומתבקש לטעון מחדש.
  * 2: הגדרות, סבבים וחשיפת תפקידים.
+ * 3: הצבעות, ניחושים, ניצחון וניקוד.
  */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 export const CODE_LENGTH = 6;
 /** כמו באורך השם במסך ההגדרות */
@@ -31,6 +32,8 @@ export interface RoomSettings {
   imposterCount: 1 | 2;
   imposterNeverStarts: boolean;
   showCategory: boolean;
+  /** בהצבעה רואים רק כמה הצביעו, והקולות נחשפים בסוף. אחרת כל קול גלוי מיד, כמו הרמת ידיים */
+  secretVote: boolean;
 }
 
 export type ClientMessage =
@@ -49,7 +52,16 @@ export type ClientMessage =
   | { type: 'reveal:skip' }
   | { type: 'round:end' }
   | { type: 'round:next' }
-  | { type: 'round:lobby' };
+  | { type: 'round:lobby' }
+  | { type: 'vote:start'; targetId: string }
+  | { type: 'vote:cast'; yes: boolean }
+  | { type: 'vote:cancel' }
+  | { type: 'vote:close' }
+  | { type: 'reveal:continue' }
+  | { type: 'guess:start' }
+  | { type: 'guess:cancel' }
+  | { type: 'guess:mark'; correct: boolean }
+  | { type: 'scores:reset' };
 
 export type ErrorCode =
   /** הטלפון עם גרסה ישנה (או חדשה) מדי */
@@ -66,7 +78,11 @@ export type ErrorCode =
   | 'bad_message'
   /** הפעולה לא מתאימה לשלב הנוכחי (למשל התחלה באמצע סבב) */
   | 'wrong_phase'
-  | 'not_enough_players';
+  | 'not_enough_players'
+  /** כבר יש הצבעה או ניחוש פתוחים, או שמחכים ל"ממשיכים" אחרי הדחה */
+  | 'busy'
+  /** השחקן הודח או יצא, או שהוא הנאשם */
+  | 'not_allowed';
 
 export interface PublicPlayer {
   id: string;
@@ -83,6 +99,36 @@ export type RoomPhase = 'lobby' | 'reveal' | 'play' | 'roundEnd';
 /** התפקיד של הטלפון הזה בסבב. רק הוא מקבל אותו */
 export type Role = { kind: 'crew'; word: string } | { kind: 'imposter'; hint: string };
 
+export type Winner = 'crew' | 'imposters';
+export type WinReason = 'allCaught' | 'outnumbered' | 'lastGuess' | 'freeGuessRight' | 'freeGuessWrong';
+
+/** הצבעה פתוחה */
+export interface VoteState {
+  /** עולה בכל הצבעה, כדי לדעת שזו הצבעה חדשה (בשביל צליל ורטט) */
+  id: number;
+  targetId: string;
+  startedBy: string;
+  /** מי רשאי להצביע: כל מי שבמשחק חוץ מהנאשם */
+  voterIds: string[];
+  /** כמה כבר הצביעו */
+  votedCount: number;
+  /** רק בהצבעה גלויה: מה כל אחד הצביע עד עכשיו */
+  votes?: Record<string, boolean>;
+  /** הקול של הטלפון הזה, אם כבר הצביע. גם בהצבעה חשאית */
+  myVote?: boolean;
+}
+
+/** התוצאה של ההצבעה האחרונה. נשארת עד ההצבעה הבאה */
+export interface VoteResult {
+  id: number;
+  targetId: string;
+  yes: number;
+  no: number;
+  /** מה כל אחד הצביע (גם בהצבעה חשאית, אחרי שנסגרה). מי שלא הצביע לא מופיע ונספר נגד */
+  votes: Record<string, boolean>;
+  eliminated: boolean;
+}
+
 export interface RoundState {
   /** עולה בכל סבב, כדי לדעת שזה סבב חדש */
   number: number;
@@ -91,8 +137,20 @@ export interface RoundState {
   starterId: string;
   /** מי כבר ראה את התפקיד שלו */
   seenIds: string[];
-  /** מי יצא מהחדר באמצע הסבב */
+  /** מי יצא מהחדר באמצע הסבב (הם גם ב-eliminatedIds) */
   leftIds: string[];
+  /** מי כבר לא במשחק: הודחו בהצבעה או יצאו */
+  eliminatedIds: string[];
+  /** מתחזים שהודחו (וכבר נחשפו לכולם) */
+  caughtIds: string[];
+  /** ההדחה האחרונה, עד שלוחצים "ממשיכים". imposter גלוי לכולם ממילא */
+  revealed?: { playerId: string; imposter: boolean };
+  /** המתחזה שהודח עכשיו מנחש את המילה, והשחקנים מסמנים */
+  guessPending: boolean;
+  vote?: VoteState;
+  lastVote?: VoteResult;
+  /** ניחוש חופשי פתוח: מישהו לחץ "המתחזה מנחש" */
+  freeGuess?: { startedBy: string };
   /** כמה מתחזים יש. ידוע לכולם, כמו בטלפון האחד */
   imposterCount: number;
   /** null = הטלפון הזה לא בסבב (הצטרף באמצע) */
@@ -106,6 +164,11 @@ export interface RoundState {
     imposters: { id: string; hint: string }[];
     /** הסבב נגמר כי מתחזה יצא מהחדר */
     imposterLeft: boolean;
+    /** אין מנצח כשהמארח סיים את הסבב בעצמו, או כשמתחזה יצא */
+    winner?: Winner;
+    winReason?: WinReason;
+    /** כמה נקודות כל אחד קיבל בסבב הזה */
+    points: Record<string, number>;
   };
 }
 
@@ -120,6 +183,8 @@ export interface RoomState {
   phase: RoomPhase;
   settings: RoomSettings;
   round?: RoundState;
+  /** ניקוד מצטבר בחדר: playerId -> נקודות */
+  scores: Record<string, number>;
 }
 
 export type LeftReason = 'left' | 'kicked' | 'closed';
