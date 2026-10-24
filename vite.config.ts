@@ -60,6 +60,10 @@ export default defineConfig({
     host: true,
     port: 5180,
     strictPort: true,
+    // השרת של מצב "כל אחד בטלפון שלו" רץ בנפרד: npm run dev:worker (wrangler dev, פורט 5182)
+    proxy: {
+      '/api': { target: 'http://localhost:5182', ws: true },
+    },
   },
   preview: {
     host: true,

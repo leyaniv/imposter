@@ -12,10 +12,22 @@ function gameUrl(): string {
  * בדפדפן בלי תפריט שיתוף, מעתיקים את הקישור.
  */
 export async function shareGame(): Promise<ShareResult> {
-  const url = gameUrl();
+  return shareLink(he.home.shareText, gameUrl());
+}
+
+/** הקישור לחדר במצב "כל אחד בטלפון שלו" */
+export function roomUrl(code: string): string {
+  return `${gameUrl()}?room=${code}`;
+}
+
+export async function shareRoom(code: string): Promise<ShareResult> {
+  return shareLink(he.online.lobby.shareText, roomUrl(code));
+}
+
+async function shareLink(text: string, url: string): Promise<ShareResult> {
   if (navigator.share) {
     try {
-      await navigator.share({ title: he.appName, text: he.home.shareText, url });
+      await navigator.share({ title: he.appName, text, url });
       return 'shared';
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return 'cancelled';
@@ -23,7 +35,7 @@ export async function shareGame(): Promise<ShareResult> {
     }
   }
   try {
-    await navigator.clipboard.writeText(`${he.home.shareText}\n${url}`);
+    await navigator.clipboard.writeText(`${text}\n${url}`);
     return 'copied';
   } catch {
     return 'failed';

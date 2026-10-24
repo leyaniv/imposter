@@ -1,0 +1,140 @@
+// בדיקת עשן לשרת של מצב "כל אחד בטלפון שלו": שלושה "טלפונים" פותחים חדר, מצטרפים, מתנתקים וחוזרים.
+// מריצים מול wrangler dev:  npm run dev:worker  ואז  node scripts/smoke-online.mjs [http://localhost:5182]
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+
+const BASE = process.argv[2] ?? 'http://localhost:5182';
+const VERSION = 1;
+
+/** טלפון אחד: WebSocket שאוסף את ההודעות */
+async function phone(code) {
+  const ws = new WebSocket(`${BASE.replace(/^http/, 'ws')}/api/rooms/${code}/ws`);
+  const messages = [];
+  const waiters = [];
+  ws.addEventListener('message', (event) => {
+    if (event.data === 'pong') return messages.push({ type: 'pong' });
+    messages.push(JSON.parse(event.data));
+    for (const waiter of waiters.splice(0)) waiter();
+  });
+  const closed = new Promise((resolve) => ws.addEventListener('close', (event) => resolve(event)));
+  await new Promise((resolve, reject) => {
+    ws.addEventListener('open', resolve, { once: true });
+    ws.addEventListener('error', reject, { once: true });
+  });
+
+  /** מחכה להודעה שמתאימה, כולל כאלה שכבר הגיעו */
+  async function next(match, timeout = 3000) {
+    const deadline = Date.now() + timeout;
+    for (;;) {
+      const index = messages.findIndex(match);
+      if (index >= 0) return messages.splice(index, 1)[0];
+      if (Date.now() > deadline) throw new Error(`timeout. got: ${JSON.stringify(messages)}`);
+      await new Promise((resolve) => {
+        waiters.push(resolve);
+        setTimeout(resolve, 100);
+      });
+    }
+  }
+  /** המצב האחרון שהגיע אחרי ש-match מתקיים עליו */
+  const stateWhere = (check) => next((m) => m.type === 'state' && check(m.state)).then((m) => m.state);
+  const send = (message) => ws.send(typeof message === 'string' ? message : JSON.stringify(message));
+  return { ws, next, stateWhere, send, closed, close: () => ws.close() };
+}
+
+async function main() {
+  // פתיחת חדר
+  const old = await fetch(`${BASE}/api/rooms`, { method: 'POST', body: JSON.stringify({ version: 0 }) });
+  assert.equal(old.status, 409, 'old version is rejected');
+  const created = await fetch(`${BASE}/api/rooms`, { method: 'POST', body: JSON.stringify({ version: VERSION }) });
+  assert.equal(created.status, 200);
+  const { code } = await created.json();
+  assert.match(code, /^\d{6}$/);
+  console.log('room', code);
+
+  // חדר שלא קיים
+  const ghost = await phone(code === '000000' ? '000001' : '000000');
+  ghost.send({ type: 'room:join', name: 'רוח', token: randomUUID(), version: VERSION });
+  assert.equal((await ghost.next((m) => m.type === 'error')).code, 'room_not_found');
+  assert.equal((await ghost.closed).code, 4000);
+
+  // שלושה שחקנים מצטרפים. הראשון הוא המארח
+  const tokens = { dana: randomUUID(), yossi: randomUUID(), roni: randomUUID() };
+  const dana = await phone(code);
+  dana.send({ type: 'room:join', name: 'דנה', token: tokens.dana, version: VERSION });
+  await dana.next((m) => m.type === 'welcome');
+  const first = await dana.stateWhere((s) => s.players.length === 1);
+  assert.equal(first.hostId, first.you);
+
+  const yossi = await phone(code);
+  yossi.send({ type: 'room:join', name: 'יוסי', token: tokens.yossi, version: VERSION });
+  await yossi.next((m) => m.type === 'welcome');
+
+  const taken = await phone(code);
+  taken.send({ type: 'room:join', name: ' דנה ', token: randomUUID(), version: VERSION });
+  assert.equal((await taken.next((m) => m.type === 'error')).code, 'name_taken');
+  taken.close();
+
+  const roni = await phone(code);
+  roni.send({ type: 'room:join', name: 'רוני', token: tokens.roni, version: VERSION });
+  await roni.next((m) => m.type === 'welcome');
+
+  const lobby = await dana.stateWhere((s) => s.players.length === 3 && s.players.every((p) => p.connected));
+  assert.deepEqual(lobby.players.map((p) => p.name), ['דנה', 'יוסי', 'רוני']);
+  assert.ok(!JSON.stringify(lobby).includes(tokens.yossi), 'no tokens in state');
+  console.log('3 players in lobby');
+
+  // ping/pong אוטומטי
+  yossi.send('ping');
+  await yossi.next((m) => m.type === 'pong');
+
+  // רק המארח משנה סדר
+  yossi.send({ type: 'lobby:reorder', playerIds: ['p3', 'p2', 'p1'] });
+  assert.equal((await yossi.next((m) => m.type === 'error')).code, 'not_host');
+  dana.send({ type: 'lobby:reorder', playerIds: ['p3', 'p1', 'p2'] });
+  await roni.stateWhere((s) => s.players.map((p) => p.name).join() === 'רוני,דנה,יוסי');
+  console.log('reorder ok');
+
+  // יוסי מתנתק ומסומן כמנותק, ואז חוזר עם הטוקן
+  yossi.close();
+  await dana.stateWhere((s) => s.players.find((p) => p.name === 'יוסי')?.connected === false);
+  const yossi2 = await phone(code);
+  yossi2.send({ type: 'room:rejoin', token: tokens.yossi, version: VERSION });
+  const back = await yossi2.stateWhere(() => true);
+  assert.equal(back.players.find((p) => p.id === back.you).name, 'יוסי');
+  await dana.stateWhere((s) => s.players.every((p) => p.connected));
+  console.log('rejoin ok');
+
+  // join חוזר עם אותו טוקן (התשובה הקודמת לא הגיעה) לא יוצר שחקן כפול
+  const roni2 = await phone(code);
+  roni2.send({ type: 'room:join', name: 'רוני', token: tokens.roni, version: VERSION });
+  await roni2.next((m) => m.type === 'welcome');
+  assert.equal((await roni.closed).reason, 'replaced', 'the older connection of the same player is replaced');
+  assert.equal((await roni2.stateWhere(() => true)).players.length, 3);
+  console.log('idempotent join ok');
+
+  // המארח מוציא את רוני
+  dana.send({ type: 'lobby:kick', playerId: 'p3' });
+  assert.equal((await roni2.next((m) => m.type === 'left')).reason, 'kicked');
+  assert.equal((await roni2.closed).code, 4000);
+  await dana.stateWhere((s) => s.players.length === 2);
+  const roni3 = await phone(code);
+  roni3.send({ type: 'room:rejoin', token: tokens.roni, version: VERSION });
+  assert.equal((await roni3.next((m) => m.type === 'error')).code, 'bad_token');
+  roni3.close();
+  console.log('kick ok');
+
+  // המארח יוצא, והאירוח עובר ליוסי
+  dana.send({ type: 'room:leave' });
+  assert.equal((await dana.next((m) => m.type === 'left')).reason, 'left');
+  const after = await yossi2.stateWhere((s) => s.players.length === 1);
+  assert.equal(after.hostId, after.you);
+  console.log('host leaves ok');
+
+  yossi2.close();
+  console.log('\nall good');
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

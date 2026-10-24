@@ -1,18 +1,14 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
-import { MAX_PLAYERS, MIN_PLAYERS, addPlayer, duplicateNames, movePlayer } from '../game/setup';
+import { useEffect, useRef } from 'react';
+import { MAX_PLAYERS, MIN_PLAYERS, addPlayer, duplicateNames } from '../game/setup';
 import type { Player } from '../game/types';
+import { useDragReorder } from '../hooks/useDragReorder';
 import { he } from '../i18n/he';
 import { displayName } from '../ui/names';
+import DragHandle from './DragHandle';
 
 interface Props {
   players: Player[];
   onChange: (players: Player[]) => void;
-}
-
-interface Drag {
-  id: string;
-  /** מיקום האצבע כשהשורה הייתה במקומה הנוכחי ברשימה */
-  originY: number;
 }
 
 /**
@@ -20,16 +16,11 @@ interface Drag {
  * המזהה של כל שחקן נשאר קבוע, כך שהניקוד שלו לא הולך לאיבוד כשמשנים את הסדר.
  */
 export default function PlayerList({ players, onChange }: Props) {
-  const rows = useRef(new Map<string, HTMLLIElement>());
   const inputs = useRef(new Map<string, HTMLInputElement>());
-  const latest = useRef(players);
-  const drag = useRef<Drag | null>(null);
-  const [dragId, setDragId] = useState<string | null>(null);
-  const [offset, setOffset] = useState(0);
   const focusId = useRef<string | null>(null);
+  const { rowRef, handleProps, rowProps } = useDragReorder(players, onChange);
 
   useEffect(() => {
-    latest.current = players;
     // שחקן שנוסף עכשיו: מתחילים להקליד את השם שלו מיד
     if (focusId.current) {
       inputs.current.get(focusId.current)?.focus();
@@ -51,100 +42,14 @@ export default function PlayerList({ players, onChange }: Props) {
 
   const remove = (id: string) => onChange(players.filter((player) => player.id !== id));
 
-  /** המרחק בין שורה לשורה (גובה שורה + רווח) */
-  const rowStep = (a: string, b: string) => {
-    const first = rows.current.get(a);
-    const second = rows.current.get(b);
-    return first && second ? Math.abs(second.offsetTop - first.offsetTop) : 0;
-  };
-
-  const onPointerDown = (e: PointerEvent<HTMLButtonElement>, id: string) => {
-    e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    drag.current = { id, originY: e.clientY };
-    setDragId(id);
-    setOffset(0);
-  };
-
-  const onPointerMove = (e: PointerEvent<HTMLButtonElement>) => {
-    const current = drag.current;
-    if (!current) return;
-    const start = latest.current;
-    let list = start;
-    let index = list.findIndex((player) => player.id === current.id);
-    let dy = e.clientY - current.originY;
-    // כל השורות באותו גובה, אז מספיק למדוד מרחק בין שתי שורות פעם אחת
-    const neighbor = list[index + 1] ?? list[index - 1];
-    const step = neighbor ? rowStep(current.id, neighbor.id) : 0;
-    if (!step) return;
-
-    // עברו חצי שורה: מחליפים מקום עם השכן, והשורה ממשיכה לעקוב אחרי האצבע מהמקום החדש
-    while (index < list.length - 1 && dy > step / 2) {
-      list = movePlayer(list, index, index + 1);
-      index++;
-      current.originY += step;
-      dy -= step;
-    }
-    while (index > 0 && dy < -step / 2) {
-      list = movePlayer(list, index, index - 1);
-      index--;
-      current.originY -= step;
-      dy += step;
-    }
-    if (list !== start) {
-      latest.current = list;
-      onChange(list);
-    }
-    setOffset(dy);
-  };
-
-  const endDrag = () => {
-    drag.current = null;
-    setDragId(null);
-    setOffset(0);
-  };
-
-  const onHandleKey = (e: KeyboardEvent<HTMLButtonElement>, index: number) => {
-    const to = e.key === 'ArrowUp' ? index - 1 : e.key === 'ArrowDown' ? index + 1 : -1;
-    if (to < 0 || to >= players.length) return;
-    e.preventDefault();
-    onChange(movePlayer(players, index, to));
-  };
-
   return (
     <>
       <ol className="name-list">
         {players.map((player, i) => {
           const name = displayName(player, i);
-          const dragging = player.id === dragId;
           return (
-            <li
-              key={player.id}
-              ref={(el) => {
-                if (el) rows.current.set(player.id, el);
-                else rows.current.delete(player.id);
-              }}
-              className={dragging ? 'dragging' : undefined}
-              style={dragging ? { transform: `translateY(${offset}px)` } : undefined}
-            >
-              <button
-                className="drag-handle"
-                aria-label={he.setup.movePlayer(name)}
-                onPointerDown={(e) => onPointerDown(e, player.id)}
-                onPointerMove={onPointerMove}
-                onPointerUp={endDrag}
-                onPointerCancel={endDrag}
-                onKeyDown={(e) => onHandleKey(e, i)}
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  {[6, 12, 18].map((y) => (
-                    <g key={y}>
-                      <circle cx="9" cy={y} r="1.6" />
-                      <circle cx="15" cy={y} r="1.6" />
-                    </g>
-                  ))}
-                </svg>
-              </button>
+            <li key={player.id} ref={rowRef(player.id)} {...rowProps(player.id)}>
+              <DragHandle label={he.setup.movePlayer(name)} {...handleProps(player.id, i)} />
               <span className="name-index">{i + 1}</span>
               <input
                 ref={(el) => {

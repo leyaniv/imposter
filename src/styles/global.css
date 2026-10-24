@@ -997,6 +997,99 @@ a.btn-ghost {
   }
 }
 
+/* ---------- כל אחד בטלפון שלו ---------- */
+
+.code-row {
+  display: flex;
+  gap: 8px;
+}
+
+/* הקוד נכתב משמאל לימין, גם בממשק בעברית */
+.code-input {
+  direction: ltr;
+  text-align: center;
+  letter-spacing: 0.2em;
+  font-variant-numeric: tabular-nums;
+}
+
+.code-join {
+  width: auto;
+  min-height: 48px;
+  flex: none;
+}
+
+.link-home {
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+}
+
+.room-code-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+}
+
+.room-code {
+  font-size: 2.6rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+
+.lobby-list li {
+  min-height: 48px;
+  padding-inline: 4px;
+  background: var(--surface);
+}
+
+.lobby-list li.dragging {
+  background: var(--surface-2);
+}
+
+.lobby-name {
+  flex: 1;
+  min-width: 0;
+  padding-inline: 6px;
+  overflow-wrap: anywhere;
+}
+
+.lobby-name.offline {
+  color: var(--muted);
+}
+
+.badge {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.badge-accent {
+  background: color-mix(in srgb, var(--accent) 28%, var(--surface));
+}
+
+.badge-muted {
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+}
+
+.connection-notice {
+  align-self: center;
+}
+
+.center-text {
+  text-align: center;
+}
+
 @keyframes land-ring {
   from {
     box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 80%, transparent);

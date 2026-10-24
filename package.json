@@ -5,13 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "npm run typecheck && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p worker",
     "test": "vitest run",
     "test:watch": "vitest",
     "icons": "node scripts/generate-icons.mjs",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "types:worker": "wrangler types worker/worker-configuration.d.ts",
+    "dev:worker": "wrangler dev --port 5182",
+    "smoke:online": "node scripts/smoke-online.mjs"
   },
   "dependencies": {
     "@fontsource/heebo": "^5.3.0",

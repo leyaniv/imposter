@@ -31,7 +31,7 @@ export function blankPlayers(count: number): Player[] {
 }
 
 /** מזיז שחקן ממקום למקום בסדר הישיבה */
-export function movePlayer(players: readonly Player[], from: number, to: number): Player[] {
+export function movePlayer<T>(players: readonly T[], from: number, to: number): T[] {
   const result = [...players];
   const [moved] = result.splice(from, 1);
   result.splice(to, 0, moved);

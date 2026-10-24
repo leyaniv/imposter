@@ -1,0 +1,168 @@
+import { DurableObject } from 'cloudflare:workers';
+import type { ClientMessage, ErrorCode, LeftReason, ServerMessage } from '../src/online/protocol';
+import { act, cleanupAt, createRoom, join, parseMessage, rejoin, view, type Room as RoomData } from './logic';
+
+/** מה שמוצמד לכל WebSocket. נשמר גם כשהחדר "ישן" */
+interface Attachment {
+  playerId: string | null;
+}
+
+/** קוד סגירה של WebSocket אחרי שהשחקן יצא, הוצא, או שהחדר נמחק */
+const CLOSE_LEFT = 4000;
+
+/**
+ * Durable Object אחד לכל חדר: מחזיק את מצב החדר ואת החיבורים של כל הטלפונים.
+ * משתמש ב-WebSocket Hibernation API, כך שבין הודעות החדר "ישן" ולא עולה כסף, בלי לנתק את הטלפונים.
+ * כל החוקים ב-logic.ts. כאן רק חיבורים, אחסון וניקוי.
+ */
+export class Room extends DurableObject<Env> {
+  private room: RoomData | undefined;
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    // ping/pong בלי להעיר את החדר ובלי חיוב
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
+    ctx.blockConcurrencyWhile(async () => {
+      this.room = await ctx.storage.get<RoomData>('room');
+    });
+  }
+
+  /** נקרא מה-Worker כשפותחים חדר. false אם הקוד כבר תפוס */
+  async reserve(code: string): Promise<boolean> {
+    if (this.room) return false;
+    await this.save(createRoom(code, Date.now()));
+    return true;
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    if (request.headers.get('Upgrade') !== 'websocket') return new Response('Expected WebSocket', { status: 426 });
+    const { 0: client, 1: server } = new WebSocketPair();
+    this.ctx.acceptWebSocket(server);
+    server.serializeAttachment({ playerId: null } satisfies Attachment);
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer) {
+    const message = typeof raw === 'string' ? parseMessage(raw) : null;
+    if (!message) return send(ws, { type: 'error', code: 'bad_message' });
+
+    if (!this.room) {
+      send(ws, { type: 'error', code: 'room_not_found' });
+      return ws.close(CLOSE_LEFT, 'room_not_found');
+    }
+
+    const { playerId } = ws.deserializeAttachment() as Attachment;
+    if (message.type === 'room:join' || message.type === 'room:rejoin') {
+      if (playerId) return send(ws, { type: 'error', code: 'bad_message' });
+      return this.admit(ws, message);
+    }
+    if (!playerId) return send(ws, { type: 'error', code: 'not_joined' });
+
+    const result = act(this.room, playerId, message, Date.now());
+    if ('error' in result) return this.reject(ws, playerId, result.error);
+
+    await this.save(result.room);
+    if (result.left) this.disconnect(result.left.playerId, result.left.reason);
+    this.broadcast();
+  }
+
+  async webSocketClose(ws: WebSocket) {
+    // הטלפון התנתק (ננעל, ריענון וכו'). השחקן נשאר בחדר, ורק מסומן כמנותק
+    this.broadcast(ws);
+  }
+
+  async webSocketError(ws: WebSocket) {
+    this.broadcast(ws);
+  }
+
+  async alarm() {
+    if (!this.room) return;
+    const at = cleanupAt(this.room);
+    if (Date.now() < at) return this.ctx.storage.setAlarm(at);
+
+    for (const ws of this.ctx.getWebSockets()) {
+      send(ws, { type: 'left', reason: 'closed' });
+      ws.close(CLOSE_LEFT, 'closed');
+    }
+    this.room = undefined;
+    await this.ctx.storage.deleteAll();
+  }
+
+  private async admit(ws: WebSocket, message: Extract<ClientMessage, { type: 'room:join' | 'room:rejoin' }>) {
+    const room = this.room!;
+    let playerId: string;
+    if (message.type === 'room:join') {
+      const result = join(room, message.name, message.version, message.token, Date.now());
+      if ('error' in result) return send(ws, { type: 'error', code: result.error });
+      playerId = result.playerId;
+      if (result.room !== room) await this.save(result.room);
+      send(ws, { type: 'welcome' });
+    } else {
+      const result = rejoin(room, message.token, message.version);
+      if ('error' in result) return send(ws, { type: 'error', code: result.error });
+      playerId = result.playerId;
+    }
+
+    // אותו שחקן מחובר כבר מטלפון אחר (או מלשונית ישנה): החיבור החדש מחליף אותו
+    for (const other of this.sockets(playerId)) other.close(CLOSE_LEFT, 'replaced');
+    ws.serializeAttachment({ playerId } satisfies Attachment);
+    this.broadcast();
+  }
+
+  /** הפעולה נדחתה. שולחים שוב את המצב, כדי שהמסך לא יישאר עם שינוי שלא קרה (למשל סדר אחר) */
+  private reject(ws: WebSocket, playerId: string, code: ErrorCode) {
+    send(ws, { type: 'error', code });
+    send(ws, { type: 'state', state: view(this.room!, playerId, this.connectedIds()) });
+  }
+
+  private disconnect(playerId: string, reason: LeftReason) {
+    for (const ws of this.sockets(playerId)) {
+      send(ws, { type: 'left', reason });
+      ws.serializeAttachment({ playerId: null } satisfies Attachment);
+      ws.close(CLOSE_LEFT, reason);
+    }
+  }
+
+  /** שולח לכל טלפון את המצב שהוא רשאי לראות. closing: חיבור שנסגר עכשיו ועוד מופיע ברשימה */
+  private broadcast(closing?: WebSocket) {
+    if (!this.room) return;
+    const connected = this.connectedIds(closing);
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === closing) continue;
+      const { playerId } = ws.deserializeAttachment() as Attachment;
+      if (playerId) send(ws, { type: 'state', state: view(this.room, playerId, connected) });
+    }
+  }
+
+  private connectedIds(closing?: WebSocket): Set<string> {
+    const ids = new Set<string>();
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === closing || ws.readyState !== WebSocket.OPEN) continue;
+      const { playerId } = ws.deserializeAttachment() as Attachment;
+      if (playerId) ids.add(playerId);
+    }
+    return ids;
+  }
+
+  private sockets(playerId: string): WebSocket[] {
+    return this.ctx.getWebSockets().filter((ws) => (ws.deserializeAttachment() as Attachment).playerId === playerId);
+  }
+
+  /**
+   * כל המצב נשמר כמפתח אחד (שורה אחת ב-SQLite).
+   * התזכורת לניקוי נקבעת רק אם אין כבר אחת, כדי לא לכתוב פעמיים בכל שינוי. alarm() דוחה אותה לפי הצורך.
+   */
+  private async save(room: RoomData) {
+    this.room = room;
+    await this.ctx.storage.put('room', room);
+    if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(cleanupAt(room));
+  }
+}
+
+function send(ws: WebSocket, message: ServerMessage) {
+  try {
+    ws.send(JSON.stringify(message));
+  } catch {
+    // החיבור כבר נסגר
+  }
+}

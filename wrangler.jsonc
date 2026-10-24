@@ -1,13 +1,23 @@
 // הגדרות ההעלאה ל-Cloudflare. מעלים עם: npm run deploy
-// כרגע זה רק אתר סטטי (התיקייה dist). בגרסת מרובי המשתתפים יתווסף כאן קוד שרת ו-Durable Objects.
+// קבצי המשחק (התיקייה dist) מוגשים ישירות. רק /api/ עובר דרך קוד השרת (worker/), בשביל מצב "כל אחד בטלפון שלו".
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "imposter",
+  "main": "worker/index.ts",
   "compatibility_date": "2026-10-01",
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "single-page-application"
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    // רק הבקשות האלה מגיעות ל-Worker. כל השאר מוגש ישר מהקבצים, בלי לעלות כסף
+    "run_worker_first": ["/api/*"]
   },
+  // חדר משחק = Durable Object אחד, לפי הקוד שלו (worker/room.ts)
+  "durable_objects": {
+    "bindings": [{ "name": "ROOMS", "class_name": "Room" }]
+  },
+  // בחבילה החינמית יש רק Durable Objects מסוג SQLite
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
   // הדומיין של המשחק. Cloudflare יוצר את רשומות ה-DNS ואת תעודת ה-HTTPS בזמן ההעלאה.
   // הכתובת הישנה imposter.leyaniv.workers.dev ממשיכה לעבוד, בשביל קישורים ואפליקציות שכבר הותקנו.
   // בלי workers_dev מפורש, wrangler מכבה אותה ברגע שיש routes.
