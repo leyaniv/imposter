@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import Scoreboard from '../components/Scoreboard';
 import StickyActions from '../components/StickyActions';
 import WordReport from '../components/WordReport';
@@ -17,6 +18,8 @@ interface Props {
   onLobby: () => void;
   onResetScores: () => void;
   onAskLeave: () => void;
+  /** הפס העליון: השתקה, ניהול החדר ויציאה (RoomBar) */
+  bar: ReactNode;
 }
 
 /** סוף הסבב: המילה, המתחזים והרמזים שלהם. המארח ממשיך לסבב נוסף או חוזר ללובי */
@@ -30,6 +33,7 @@ export default function RoundEndOnline({
   onLobby,
   onResetScores,
   onAskLeave,
+  bar,
 }: Props) {
   const reveal = round.reveal!;
   const isHost = state.hostId === state.you;
@@ -37,6 +41,7 @@ export default function RoundEndOnline({
 
   return (
     <main className="screen">
+      {bar}
       <div className="screen-body center">
         <ConnectionNotice status={status} />
         <h1 className="heading">{he.roundEnd.title}</h1>

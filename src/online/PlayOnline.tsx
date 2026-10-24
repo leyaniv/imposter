@@ -1,7 +1,6 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import ConfirmDialog from '../components/ConfirmDialog';
 import PlayerCircle from '../components/PlayerCircle';
-import TopBar from '../components/TopBar';
 import WordReport from '../components/WordReport';
 import type { WordProblem } from '../game/types';
 import { useStarterDraw } from '../hooks/useStarterDraw';
@@ -9,7 +8,6 @@ import { he } from '../i18n/he';
 import RevealScreen from '../screens/RevealScreen';
 import ConnectionNotice from './ConnectionNotice';
 import type { ConnectionStatus } from './connection';
-import MuteButton from './MuteButton';
 import type { RoomState, RoundState } from './protocol';
 import { shownRole } from './RevealOnline';
 
@@ -23,7 +21,8 @@ interface Props {
   onVote: (targetId: string) => void;
   onFreeGuess: () => void;
   onEndRound: () => void;
-  onAskLeave: () => void;
+  /** הפס העליון: השתקה, ניהול החדר ויציאה (RoomBar) */
+  bar: ReactNode;
 }
 
 /** ההגרלה של מי מתחיל רצה פעם אחת בכל סבב בכל טלפון, ולא שוב אחרי ריענון */
@@ -59,7 +58,7 @@ export default function PlayOnline({
   onVote,
   onFreeGuess,
   onEndRound,
-  onAskLeave,
+  bar,
 }: Props) {
   const [overlay, setOverlay] = useState<Overlay>(null);
   const key = drawnKey(state, round);
@@ -96,9 +95,7 @@ export default function PlayOnline({
 
   return (
     <main className="screen">
-      <TopBar onExit={onAskLeave}>
-        <MuteButton />
-      </TopBar>
+      {bar}
       <div className="screen-body center">
         <ConnectionNotice status={status} />
         {lastVote ? (

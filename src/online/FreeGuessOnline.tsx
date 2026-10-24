@@ -1,9 +1,8 @@
-import TopBar from '../components/TopBar';
+import type { ReactNode } from 'react';
 import { he } from '../i18n/he';
 import ConnectionNotice from './ConnectionNotice';
 import type { ConnectionStatus } from './connection';
 import GuessMarker from './GuessMarker';
-import MuteButton from './MuteButton';
 import type { RoomState, RoundState } from './protocol';
 
 interface Props {
@@ -12,18 +11,17 @@ interface Props {
   status: ConnectionStatus;
   onMark: (correct: boolean) => void;
   onCancel: () => void;
-  onAskLeave: () => void;
+  /** הפס העליון: השתקה, ניהול החדר ויציאה (RoomBar) */
+  bar: ReactNode;
 }
 
 /** ניחוש חופשי: המתחזה אומר ניחוש בקול. נכון = ניצחון למתחזים, שגוי = ניצחון לשחקנים */
-export default function FreeGuessOnline({ state, round, status, onMark, onCancel, onAskLeave }: Props) {
+export default function FreeGuessOnline({ state, round, status, onMark, onCancel, bar }: Props) {
   const startedHere = round.freeGuess?.startedBy === state.you;
 
   return (
     <main className="screen">
-      <TopBar onExit={onAskLeave}>
-        <MuteButton />
-      </TopBar>
+      {bar}
       <div className="screen-body center">
         <ConnectionNotice status={status} />
         <h1 className="heading">{he.guess.freeTitle}</h1>

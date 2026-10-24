@@ -1134,6 +1134,19 @@ a.btn-ghost {
   font-weight: 600;
 }
 
+/* בחירת מחליף למארח שיוצא */
+.host-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.host-option {
+  min-height: 44px;
+}
+
 .connection-notice {
   align-self: center;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { he } from '../i18n/he';
 import RevealScreen, { type ShownRole } from '../screens/RevealScreen';
 import ConnectionNotice from './ConnectionNotice';
@@ -21,10 +21,12 @@ interface Props {
   status: ConnectionStatus;
   onSeen: () => void;
   onSkip: () => void;
+  /** הפס העליון: השתקה, ניהול החדר ויציאה (RoomBar). רק במסך ההמתנה, לא בחשיפה עצמה */
+  bar: ReactNode;
 }
 
 /** כל טלפון מציג את התפקיד שלו. אחרי "ראיתי" ממתינים לשאר, והמארח יכול להמשיך בלי לחכות */
-export default function RevealOnline({ state, round, status, onSeen, onSkip }: Props) {
+export default function RevealOnline({ state, round, status, onSeen, onSkip, bar }: Props) {
   const role = shownRole(round)!;
   // מיד אחרי הלחיצה עוברים למסך ההמתנה, בלי לחכות לתשובה מהשרת
   const [seenHere, setSeenHere] = useState(false);
@@ -51,6 +53,7 @@ export default function RevealOnline({ state, round, status, onSeen, onSkip }: P
   const waiting = round.players.filter((player) => !round.seenIds.includes(player.id) && !round.leftIds.includes(player.id));
   return (
     <main className="screen">
+      {bar}
       <div className="screen-body center">
         <ConnectionNotice status={status} />
         <h1 className="heading">{he.online.round.waitingTitle}</h1>

@@ -7,8 +7,9 @@
  * עולה בכל שינוי לא תואם בהודעות. טלפון עם גרסה אחרת מקבל outdated ומתבקש לטעון מחדש.
  * 2: הגדרות, סבבים וחשיפת תפקידים.
  * 3: הצבעות, ניחושים, ניצחון וניקוד.
+ * 4: העברת אירוח, בחירת מחליף ביציאה, שינוי סדר באמצע סבב.
  */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 export const CODE_LENGTH = 6;
 /** כמו באורך השם במסך ההגדרות */
@@ -43,7 +44,9 @@ export type ClientMessage =
    */
   | { type: 'room:join'; name: string; token: string; version: number }
   | { type: 'room:rejoin'; token: string; version: number }
-  | { type: 'room:leave' }
+  /** newHostId: רק כשהמארח יוצא, מי יחליף אותו */
+  | { type: 'room:leave'; newHostId?: string }
+  | { type: 'host:transfer'; playerId: string }
   | { type: 'lobby:reorder'; playerIds: string[] }
   | { type: 'lobby:kick'; playerId: string }
   | { type: 'lobby:settings'; settings: RoomSettings }

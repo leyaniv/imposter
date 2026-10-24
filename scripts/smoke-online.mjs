@@ -1,10 +1,13 @@
 // בדיקת עשן לשרת של מצב "כל אחד בטלפון שלו": שלושה "טלפונים" פותחים חדר, מצטרפים, משחקים סבב, מתנתקים וחוזרים.
 // מריצים מול wrangler dev:  npm run dev:worker  ואז  node scripts/smoke-online.mjs [http://localhost:5182]
+// העברת האירוח ממארח שנעלם נבדקת רק כש-wrangler dev רץ עם זמן קצר, והבדיקה מקבלת אותו:
+//   wrangler dev --port 5182 --var HOST_AWAY_MS:3000   ואז   HOST_AWAY_MS=3000 node scripts/smoke-online.mjs
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
 const BASE = process.argv[2] ?? 'http://localhost:5182';
-const VERSION = 3;
+const VERSION = 4;
+const HOST_AWAY_MS = Number(process.env.HOST_AWAY_MS) || 0;
 
 /** טלפון אחד: WebSocket שאוסף את ההודעות */
 async function phone(code) {
@@ -36,7 +39,7 @@ async function phone(code) {
     }
   }
   /** המצב האחרון שהגיע אחרי ש-match מתקיים עליו */
-  const stateWhere = (check) => next((m) => m.type === 'state' && check(m.state)).then((m) => m.state);
+  const stateWhere = (check, timeout) => next((m) => m.type === 'state' && check(m.state), timeout).then((m) => m.state);
   const send = (message) => ws.send(typeof message === 'string' ? message : JSON.stringify(message));
   return { ws, next, stateWhere, send, closed, close: () => ws.close() };
 }
@@ -142,7 +145,16 @@ async function main() {
   }
   for (const { p } of seats) p.send({ type: 'role:seen' });
   // כל טלפון מחכה למצב "play" של הסבב הזה, ולא למצב שנשאר בתור מהסבב הקודם
-  for (const { p } of seats) await p.stateWhere((s) => s.phase === 'play' && s.round?.number === 2);
+  const plays = [];
+  for (const { p } of seats) plays.push(await p.stateWhere((s) => s.phase === 'play' && s.round?.number === 2));
+
+  // שינוי סדר באמצע סבב: המעגל מתעדכן, ומי שהתחיל נשאר אותו שחקן
+  const before = plays[0];
+  const reversed = before.players.map((pl) => pl.id).reverse();
+  dana.send({ type: 'lobby:reorder', playerIds: reversed });
+  const reordered = await michal.stateWhere((s) => s.round?.players.map((pl) => pl.id).join() === reversed.join());
+  assert.equal(reordered.round.starterId, before.round.starterId);
+  console.log('mid-round reorder ok');
   const imposter = seats.find((s) => s.role.kind === 'imposter');
   const crewSeats = seats.filter((s) => s.role.kind === 'crew');
 
@@ -164,7 +176,7 @@ async function main() {
   const caught = await third.p.stateWhere((s) => s.round?.guessPending);
   assert.equal(caught.round.revealed.imposter, true);
   victim.p.send({ type: 'guess:mark', correct: false });
-  const won = await imposter.p.stateWhere((s) => s.phase === 'roundEnd');
+  const won = await imposter.p.stateWhere((s) => s.phase === 'roundEnd' && s.round?.number === 2);
   assert.equal(won.round.reveal.winner, 'crew');
   assert.equal(won.round.reveal.winReason, 'allCaught');
   for (const s of crewSeats) assert.equal(won.scores[s.id], 1, 'every crew member gets a point');
@@ -193,6 +205,13 @@ async function main() {
   roni3.close();
   console.log('kick ok');
 
+  // העברת אירוח ידנית, ובחזרה
+  dana.send({ type: 'host:transfer', playerId: 'p2' });
+  await yossi2.stateWhere((s) => s.hostId === 'p2');
+  yossi2.send({ type: 'host:transfer', playerId: 'p1' });
+  await dana.stateWhere((s) => s.hostId === 'p1');
+  console.log('host transfer ok');
+
   // המארח יוצא, והאירוח עובר ליוסי
   dana.send({ type: 'room:leave' });
   assert.equal((await dana.next((m) => m.type === 'left')).reason, 'left');
@@ -200,7 +219,20 @@ async function main() {
   assert.equal(after.hostId, after.you);
   console.log('host leaves ok');
 
-  yossi2.close();
+  if (HOST_AWAY_MS) {
+    // המארח (יוסי) נעלם בלי לצאת: אחרי הזמן הקצוב האירוח עובר לשחקן המחובר
+    const omer = await phone(code);
+    omer.send({ type: 'room:join', name: 'עומר', token: randomUUID(), version: VERSION });
+    const joined = await omer.stateWhere((s) => s.players.length === 2);
+    yossi2.close();
+    const moved = await omer.stateWhere((s) => s.hostId === joined.you, HOST_AWAY_MS + 5000);
+    assert.equal(moved.hostId, moved.you);
+    omer.close();
+    console.log('host timeout ok');
+  } else {
+    yossi2.close();
+    console.log('(host timeout skipped: run wrangler dev with --var HOST_AWAY_MS:3000 and set HOST_AWAY_MS=3000)');
+  }
   console.log('\nall good');
 }
 

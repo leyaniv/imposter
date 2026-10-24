@@ -28,6 +28,13 @@
       "runtimeArgs": ["wrangler", "dev", "--port", "5182"],
       "port": 5182,
       "autoPort": false
+    },
+    {
+      "name": "imposter-wrangler-fast-host",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["wrangler", "dev", "--port", "5182", "--var", "HOST_AWAY_MS:3000"],
+      "port": 5182,
+      "autoPort": false
     }
   ]
 }

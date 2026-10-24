@@ -1,16 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import ConfirmDialog from '../components/ConfirmDialog';
-import DragHandle from '../components/DragHandle';
 import GameSettingsFields from '../components/GameSettingsFields';
 import Scoreboard from '../components/Scoreboard';
 import StickyActions from '../components/StickyActions';
 import { MIN_PLAYERS, maxImposters } from '../game/setup';
-import { useDragReorder } from '../hooks/useDragReorder';
 import { he } from '../i18n/he';
 import { shareRoom } from '../ui/share';
 import ConnectionNotice from './ConnectionNotice';
 import type { ConnectionStatus } from './connection';
+import PlayerActions from './PlayerActions';
 import { formatCode, type PublicPlayer, type RoomSettings, type RoomState } from './protocol';
+import SeatList from './SeatList';
 
 interface Props {
   state: RoomState;
@@ -18,6 +18,7 @@ interface Props {
   allCategories: string[];
   onReorder: (playerIds: string[]) => void;
   onKick: (playerId: string) => void;
+  onTransfer: (playerId: string) => void;
   onSettings: (settings: RoomSettings) => void;
   onStart: () => void;
   onResetScores: () => void;
@@ -49,29 +50,16 @@ export default function LobbyScreen({
   allCategories,
   onReorder,
   onKick,
+  onTransfer,
   onSettings,
   onStart,
   onResetScores,
   onAskLeave,
 }: Props) {
   const isHost = state.hostId === state.you;
-  // בזמן גרירה הרשימה זזה מיד אצלנו, והשרת מקבל את הסדר החדש בסוף הגרירה
-  const [localOrder, setLocalOrder] = useState<PublicPlayer[] | null>(null);
-  const [kickId, setKickId] = useState<string | null>(null);
+  const [actionsFor, setActionsFor] = useState<PublicPlayer | null>(null);
   const [confirmStart, setConfirmStart] = useState(false);
   const [copied, setCopied] = useState(false);
-
-  const players = localOrder ?? state.players;
-  const { rowRef, handleProps, rowProps, dragging } = useDragReorder(players, setLocalOrder, (list) =>
-    onReorder(list.map((player) => player.id)),
-  );
-
-  // הגיע מצב חדש מהשרת (הסדר שנשלח, או שינוי של מישהו אחר): מציגים אותו. באמצע גרירה ממשיכים עם הסדר המקומי
-  const draggingRef = useRef(dragging);
-  draggingRef.current = dragging;
-  useEffect(() => {
-    if (!draggingRef.current) setLocalOrder(null);
-  }, [state.players]);
 
   useEffect(() => {
     if (!copied) return;
@@ -86,8 +74,6 @@ export default function LobbyScreen({
   const offline = state.players.filter((player) => !player.connected);
   const enough = state.players.length >= MIN_PLAYERS;
   const start = () => (offline.length > 0 ? setConfirmStart(true) : onStart());
-
-  const kickTarget = state.players.find((player) => player.id === kickId);
 
   return (
     <main className="screen">
@@ -106,31 +92,16 @@ export default function LobbyScreen({
         </div>
 
         <section className="field">
-          <h2 className="label">{he.online.lobby.players(players.length)}</h2>
+          <h2 className="label">{he.online.lobby.players(state.players.length)}</h2>
           <p className="help">{isHost ? he.online.lobby.hostHelp : he.online.lobby.guestHelp}</p>
-          <ol className="name-list lobby-list">
-            {players.map((player, i) => (
-              <li key={player.id} ref={rowRef(player.id)} {...rowProps(player.id)}>
-                {isHost && <DragHandle label={he.setup.movePlayer(player.name)} {...handleProps(player.id, i)} />}
-                <span className="name-index">{i + 1}</span>
-                <span className={`lobby-name${player.connected ? '' : ' offline'}`}>{player.name}</span>
-                {player.id === state.you && <span className="badge">{he.online.lobby.you}</span>}
-                {player.id === state.hostId && <span className="badge badge-accent">{he.online.lobby.host}</span>}
-                {!player.connected && <span className="badge badge-muted">{he.online.lobby.offline}</span>}
-                {isHost && player.id !== state.you && (
-                  <button
-                    className="icon-btn remove-btn"
-                    aria-label={he.online.lobby.kick(player.name)}
-                    onClick={() => setKickId(player.id)}
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M7 7l10 10M17 7L7 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                  </button>
-                )}
-              </li>
-            ))}
-          </ol>
+          <SeatList
+            players={state.players}
+            you={state.you}
+            hostId={state.hostId}
+            canReorder={isHost}
+            onReorder={onReorder}
+            onMore={isHost ? setActionsFor : undefined}
+          />
         </section>
 
         <Scoreboard players={state.players} scores={state.scores} onReset={isHost ? onResetScores : undefined} />
@@ -181,16 +152,13 @@ export default function LobbyScreen({
         {copied ? he.online.lobby.linkCopied : ''}
       </p>
 
-      {kickTarget && (
-        <ConfirmDialog
-          message={he.online.lobby.kickConfirm(kickTarget.name)}
-          confirmLabel={he.online.lobby.kickYes}
-          cancelLabel={he.common.cancel}
-          onConfirm={() => {
-            onKick(kickTarget.id);
-            setKickId(null);
-          }}
-          onCancel={() => setKickId(null)}
+      {actionsFor && (
+        <PlayerActions
+          player={actionsFor}
+          busy={false}
+          onTransfer={() => onTransfer(actionsFor.id)}
+          onKick={() => onKick(actionsFor.id)}
+          onClose={() => setActionsFor(null)}
         />
       )}
       {confirmStart && (

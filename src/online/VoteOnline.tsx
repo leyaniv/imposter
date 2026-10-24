@@ -1,10 +1,8 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import ConfirmDialog from '../components/ConfirmDialog';
-import TopBar from '../components/TopBar';
 import { he } from '../i18n/he';
 import ConnectionNotice from './ConnectionNotice';
 import type { ConnectionStatus } from './connection';
-import MuteButton from './MuteButton';
 import type { RoomState, RoundState, VoteState } from './protocol';
 
 interface Props {
@@ -15,11 +13,12 @@ interface Props {
   onCast: (yes: boolean) => void;
   onCancel: () => void;
   onClose: () => void;
-  onAskLeave: () => void;
+  /** הפס העליון: השתקה, ניהול החדר ויציאה (RoomBar) */
+  bar: ReactNode;
 }
 
 /** הצבעה פתוחה: "להדיח את X?" עם בעד ונגד. הנאשם רק רואה שמצביעים עליו */
-export default function VoteOnline({ state, round, vote, status, onCast, onCancel, onClose, onAskLeave }: Props) {
+export default function VoteOnline({ state, round, vote, status, onCast, onCancel, onClose, bar }: Props) {
   const [confirmClose, setConfirmClose] = useState(false);
   const nameOf = (id: string) => round.players.find((player) => player.id === id)?.name ?? '';
   const isTarget = vote.targetId === state.you;
@@ -29,9 +28,7 @@ export default function VoteOnline({ state, round, vote, status, onCast, onCance
 
   return (
     <main className="screen">
-      <TopBar onExit={onAskLeave}>
-        <MuteButton />
-      </TopBar>
+      {bar}
       <div className="screen-body center">
         <ConnectionNotice status={status} />
         <h1 className="heading">{he.online.vote.title(nameOf(vote.targetId))}</h1>

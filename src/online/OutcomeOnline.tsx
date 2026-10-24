@@ -1,9 +1,8 @@
-import TopBar from '../components/TopBar';
+import type { ReactNode } from 'react';
 import { he } from '../i18n/he';
 import ConnectionNotice from './ConnectionNotice';
 import type { ConnectionStatus } from './connection';
 import GuessMarker from './GuessMarker';
-import MuteButton from './MuteButton';
 import type { RoomState, RoundState } from './protocol';
 
 interface Props {
@@ -12,11 +11,12 @@ interface Props {
   status: ConnectionStatus;
   onMark: (correct: boolean) => void;
   onContinue: () => void;
-  onAskLeave: () => void;
+  /** הפס העליון: השתקה, ניהול החדר ויציאה (RoomBar) */
+  bar: ReactNode;
 }
 
 /** אחרי הדחה: "X... המתחזה!" או "לא המתחזה", ניחוש אחרון, ו"ממשיכים" (כמו OutcomeScreen בטלפון האחד) */
-export default function OutcomeOnline({ state, round, status, onMark, onContinue, onAskLeave }: Props) {
+export default function OutcomeOnline({ state, round, status, onMark, onContinue, bar }: Props) {
   const revealed = round.revealed!;
   const name = round.players.find((player) => player.id === revealed.playerId)?.name ?? '';
   const result = round.lastVote?.targetId === revealed.playerId ? round.lastVote : undefined;
@@ -34,9 +34,7 @@ export default function OutcomeOnline({ state, round, status, onMark, onContinue
 
   return (
     <main className="screen">
-      <TopBar onExit={onAskLeave}>
-        <MuteButton />
-      </TopBar>
+      {bar}
       <div className="screen-body center">
         <ConnectionNotice status={status} />
         {result && <p className="muted">{he.online.vote.count(result.yes, result.no)}</p>}

@@ -1,13 +1,17 @@
 import { DurableObject } from 'cloudflare:workers';
 import type { ClientMessage, ErrorCode, LeftReason, RoomSettings, ServerMessage } from '../src/online/protocol';
 import {
+  HOST_AWAY_MS,
   act,
   cleanupAt,
   createRoom,
+  hostTimeout,
   join,
+  nextAlarm,
   parseMessage,
   rejoin,
   settleVote,
+  trackHost,
   upgradeRoom,
   view,
   type Room as RoomData,
@@ -28,9 +32,12 @@ const CLOSE_LEFT = 4000;
  */
 export class Room extends DurableObject<Env> {
   private room: RoomData | undefined;
+  /** אפשר לקצר בפיתוח, בשביל בדיקת העשן: wrangler dev --var HOST_AWAY_MS:3000 */
+  private readonly hostAwayMs: number;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
+    this.hostAwayMs = Number((env as { HOST_AWAY_MS?: string }).HOST_AWAY_MS) || HOST_AWAY_MS;
     // ping/pong בלי להעיר את החדר ובלי חיוב
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
     ctx.blockConcurrencyWhile(async () => {
@@ -73,8 +80,9 @@ export class Room extends DurableObject<Env> {
     const result = act(this.room, playerId, message, Date.now(), { connected: this.connectedIds() });
     if ('error' in result) return this.reject(ws, playerId, result.error);
 
-    await this.save(result.room);
     if (result.left) this.disconnect(result.left.playerId, result.left.reason);
+    // האירוח אולי עבר למישהו מנותק (או ממנו): מתחילים או מפסיקים לספור את הזמן שלו
+    await this.save(trackHost(result.room, this.connectedIds(), Date.now()));
     this.broadcast();
   }
 
@@ -91,24 +99,37 @@ export class Room extends DurableObject<Env> {
    * בהצבעה פתוחה מנותקים לא נספרים, אז אולי עכשיו כל המחוברים כבר הצביעו
    */
   private async disconnected(ws: WebSocket) {
-    if (this.room?.vote) {
-      const settled = settleVote(this.room, this.connectedIds(ws));
-      if (settled !== this.room) await this.save(settled);
+    if (this.room) {
+      const connected = this.connectedIds(ws);
+      // בהצבעה מנותקים לא נספרים. ואם זה המארח, מתחילים לספור את הזמן עד שהאירוח עובר
+      const next = trackHost(settleVote(this.room, connected), connected, Date.now());
+      if (next !== this.room) await this.save(next);
     }
     this.broadcast(ws);
   }
 
+  /** התעוררות מתוזמנת: העברת אירוח ממארח שנעלם, או מחיקת חדר שלא היה בו שינוי שעתיים */
   async alarm() {
     if (!this.room) return;
-    const at = cleanupAt(this.room);
-    if (Date.now() < at) return this.ctx.storage.setAlarm(at);
-
-    for (const ws of this.ctx.getWebSockets()) {
-      send(ws, { type: 'left', reason: 'closed' });
-      ws.close(CLOSE_LEFT, 'closed');
+    const now = Date.now();
+    const handedOver = hostTimeout(this.room, this.connectedIds(), now, this.hostAwayMs);
+    if (handedOver !== this.room) {
+      await this.save(handedOver);
+      this.broadcast();
     }
-    this.room = undefined;
-    await this.ctx.storage.deleteAll();
+
+    if (now >= cleanupAt(this.room)) {
+      for (const ws of this.ctx.getWebSockets()) {
+        send(ws, { type: 'left', reason: 'closed' });
+        ws.close(CLOSE_LEFT, 'closed');
+      }
+      this.room = undefined;
+      await this.ctx.storage.deleteAll();
+      return;
+    }
+    // אם הזמן של המארח עבר ואין למי להעביר, מחכים שמישהו יתחבר (admit בודק שוב) ולא מתעוררים בלולאה
+    const next = nextAlarm(this.room, this.hostAwayMs);
+    await this.ctx.storage.setAlarm(next > now ? next : cleanupAt(this.room));
   }
 
   private async admit(ws: WebSocket, message: Extract<ClientMessage, { type: 'room:join' | 'room:rejoin' }>) {
@@ -129,6 +150,11 @@ export class Room extends DurableObject<Env> {
     // אותו שחקן מחובר כבר מטלפון אחר (או מלשונית ישנה): החיבור החדש מחליף אותו
     for (const other of this.sockets(playerId)) other.close(CLOSE_LEFT, 'replaced');
     ws.serializeAttachment({ playerId } satisfies Attachment);
+
+    // המארח חזר, או שעכשיו יש למי להעביר אירוח ממארח שנעלם מזמן
+    const connected = this.connectedIds();
+    const next = hostTimeout(trackHost(this.room!, connected, Date.now()), connected, Date.now(), this.hostAwayMs);
+    if (next !== this.room) await this.save(next);
     this.broadcast();
   }
 
@@ -173,12 +199,15 @@ export class Room extends DurableObject<Env> {
 
   /**
    * כל המצב נשמר כמפתח אחד (שורה אחת ב-SQLite).
-   * התזכורת לניקוי נקבעת רק אם אין כבר אחת, כדי לא לכתוב פעמיים בכל שינוי. alarm() דוחה אותה לפי הצורך.
+   * התזכורת נקבעת רק אם אין אחת, או אם צריך להתעורר מוקדם יותר (מארח שנעלם), כדי לא לכתוב פעמיים בכל שינוי.
+   * alarm() דוחה אותה לפי הצורך.
    */
   private async save(room: RoomData) {
     this.room = room;
     await this.ctx.storage.put('room', room);
-    if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(cleanupAt(room));
+    const wanted = nextAlarm(room, this.hostAwayMs);
+    const current = await this.ctx.storage.getAlarm();
+    if (current === null || wanted < current) await this.ctx.storage.setAlarm(wanted);
   }
 }
 

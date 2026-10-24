@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { track, type EventData } from '../analytics/posthog';
-import ConfirmDialog from '../components/ConfirmDialog';
 import words from '../data/words.he.json';
 import { MAX_PLAYERS, maxImposters } from '../game/setup';
 import type { WordEntry, WordProblem } from '../game/types';
@@ -15,12 +14,15 @@ import { vibrate } from '../ui/vibrate';
 import { createRoom } from './connection';
 import EntryScreen from './EntryScreen';
 import FreeGuessOnline from './FreeGuessOnline';
+import HostMenu from './HostMenu';
+import LeaveDialog from './LeaveDialog';
 import LobbyScreen from './LobbyScreen';
 import MessageScreen from './MessageScreen';
 import OutcomeOnline from './OutcomeOnline';
 import PlayOnline from './PlayOnline';
 import { isRoomCode, type ClientMessage, type ErrorCode, type RoomSettings, type RoomState } from './protocol';
 import RevealOnline from './RevealOnline';
+import RoomBar from './RoomBar';
 import RoundEndOnline from './RoundEndOnline';
 import VoteOnline from './VoteOnline';
 import { clearSession, loadName, loadSession, saveName } from './session';
@@ -246,8 +248,11 @@ function useHostAnalytics(state: RoomState | null) {
 function RoomView({ code, name, onEnd }: { code: string; name: string; onEnd: (end: RoomEnd) => void }) {
   const { state, status, end, send } = useRoom(code, name);
   const [askLeave, setAskLeave] = useState(false);
+  const [managing, setManaging] = useState(false);
   // באיזה סבב הטלפון הזה כבר דיווח על המילה
   const [reportedRound, setReportedRound] = useState(0);
+  const nowHost = useNowHost(state);
+  const isHost = !!state && state.hostId === state.you;
 
   useWakeLock(true);
   useRoundSounds(state);
@@ -259,11 +264,16 @@ function RoomView({ code, name, onEnd }: { code: string; name: string; onEnd: (e
     if (end) onEnd(end);
   }, [end]);
 
-  const leave = () => {
-    send({ type: 'room:leave' });
+  const leave = (newHostId?: string) => {
+    send(newHostId ? { type: 'room:leave', newHostId } : { type: 'room:leave' });
     clearSession(code);
     onEnd({ kind: 'left' });
   };
+
+  // האירוח עבר למישהו אחר בזמן שתפריט המארח פתוח: סוגרים אותו
+  useEffect(() => {
+    if (!isHost) setManaging(false);
+  }, [isHost]);
 
   /** פעולה של המארח שמתחילה או מסיימת סבב, עם אירוע אנליטיקה */
   const hostAction = (message: ClientMessage) => {
@@ -295,20 +305,14 @@ function RoomView({ code, name, onEnd }: { code: string; name: string; onEnd: (e
     });
   };
 
-  const leaveDialog = askLeave && (
-    <ConfirmDialog
-      message={he.online.lobby.leaveConfirm}
-      confirmLabel={he.online.lobby.leaveYes}
-      cancelLabel={he.online.lobby.stay}
-      onConfirm={leave}
-      onCancel={() => setAskLeave(false)}
-    />
+  const leaveDialog = askLeave && state && (
+    <LeaveDialog state={state} onLeave={leave} onCancel={() => setAskLeave(false)} />
   );
 
   if (!state) {
     return (
       <MessageScreen text={status === 'connecting' ? he.online.connecting : he.online.reconnecting}>
-        <button className="btn btn-ghost" onClick={leave}>
+        <button className="btn btn-ghost" onClick={() => leave()}>
           {he.online.lobby.leave}
         </button>
       </MessageScreen>
@@ -316,17 +320,33 @@ function RoomView({ code, name, onEnd }: { code: string; name: string; onEnd: (e
   }
 
   const round = state.round;
+  const bar = <RoomBar isHost={isHost} onManage={() => setManaging(true)} onAskLeave={() => setAskLeave(true)} />;
+  const transfer = (playerId: string) => send({ type: 'host:transfer', playerId });
+  const kick = (playerId: string) => send({ type: 'lobby:kick', playerId });
+  const reorder = (playerIds: string[]) => send({ type: 'lobby:reorder', playerIds });
   const reported = !!round && reportedRound === round.number;
   let screen;
 
-  if (state.phase === 'lobby' || !round) {
+  if (managing && isHost && state.phase !== 'lobby') {
+    screen = (
+      <HostMenu
+        state={state}
+        status={status}
+        onReorder={reorder}
+        onTransfer={transfer}
+        onKick={kick}
+        onClose={() => setManaging(false)}
+      />
+    );
+  } else if (state.phase === 'lobby' || !round) {
     screen = (
       <LobbyScreen
         state={state}
         status={status}
         allCategories={allCategories}
-        onReorder={(playerIds) => send({ type: 'lobby:reorder', playerIds })}
-        onKick={(playerId) => send({ type: 'lobby:kick', playerId })}
+        onReorder={reorder}
+        onKick={kick}
+        onTransfer={transfer}
         onSettings={(settings) => send({ type: 'lobby:settings', settings })}
         onStart={() => hostAction({ type: 'game:start' })}
         onResetScores={() => send({ type: 'scores:reset' })}
@@ -346,6 +366,7 @@ function RoomView({ code, name, onEnd }: { code: string; name: string; onEnd: (e
         onLobby={() => send({ type: 'round:lobby' })}
         onResetScores={() => send({ type: 'scores:reset' })}
         onAskLeave={() => setAskLeave(true)}
+        bar={bar}
       />
     );
   } else if (!round.role) {
@@ -366,6 +387,7 @@ function RoomView({ code, name, onEnd }: { code: string; name: string; onEnd: (e
         status={status}
         onSeen={() => send({ type: 'role:seen' })}
         onSkip={() => send({ type: 'reveal:skip' })}
+        bar={bar}
       />
     );
   } else if (round.vote) {
@@ -379,7 +401,7 @@ function RoomView({ code, name, onEnd }: { code: string; name: string; onEnd: (e
         onCast={(yes) => send({ type: 'vote:cast', yes })}
         onCancel={() => send({ type: 'vote:cancel' })}
         onClose={() => send({ type: 'vote:close' })}
-        onAskLeave={() => setAskLeave(true)}
+        bar={bar}
       />
     );
   } else if (round.revealed) {
@@ -391,7 +413,7 @@ function RoomView({ code, name, onEnd }: { code: string; name: string; onEnd: (e
         status={status}
         onMark={(correct) => send({ type: 'guess:mark', correct })}
         onContinue={() => send({ type: 'reveal:continue' })}
-        onAskLeave={() => setAskLeave(true)}
+        bar={bar}
       />
     );
   } else if (round.freeGuess) {
@@ -403,7 +425,7 @@ function RoomView({ code, name, onEnd }: { code: string; name: string; onEnd: (e
         status={status}
         onMark={(correct) => send({ type: 'guess:mark', correct })}
         onCancel={() => send({ type: 'guess:cancel' })}
-        onAskLeave={() => setAskLeave(true)}
+        bar={bar}
       />
     );
   } else {
@@ -418,7 +440,7 @@ function RoomView({ code, name, onEnd }: { code: string; name: string; onEnd: (e
         onVote={(targetId) => send({ type: 'vote:start', targetId })}
         onFreeGuess={() => send({ type: 'guess:start' })}
         onEndRound={() => hostAction({ type: 'round:end' })}
-        onAskLeave={() => setAskLeave(true)}
+        bar={bar}
       />
     );
   }
@@ -427,6 +449,30 @@ function RoomView({ code, name, onEnd }: { code: string; name: string; onEnd: (e
     <>
       {screen}
       {leaveDialog}
+      <p className={`toast${nowHost ? ' toast-on' : ''}`} role="status">
+        {nowHost ? he.online.host.nowHost : ''}
+      </p>
     </>
   );
+}
+
+/** "האירוח עבר אליך" לכמה שניות, כשהטלפון הזה הופך למארח (לא כשהוא פתח את החדר) */
+function useNowHost(state: RoomState | null): boolean {
+  const isHost = !!state && state.hostId === state.you;
+  const wasHost = useRef<boolean | null>(null);
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    if (!state) return;
+    if (wasHost.current === false && isHost) setShow(true);
+    wasHost.current = isHost;
+  }, [isHost, !!state]);
+
+  useEffect(() => {
+    if (!show) return;
+    const timer = setTimeout(() => setShow(false), 4000);
+    return () => clearTimeout(timer);
+  }, [show]);
+
+  return show;
 }

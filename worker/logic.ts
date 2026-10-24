@@ -84,12 +84,16 @@ export interface Room {
   freeGuess?: { startedBy: string };
   /** ניקוד מצטבר: playerId -> נקודות */
   scores: Record<string, number>;
+  /** מתי החיבור האחרון של המארח נסגר. אחרי HOST_AWAY_MS האירוח עובר לשחקן מחובר */
+  hostAwaySince?: number;
 }
 
 /** כמה זמן חדר שאף אחד לא הצטרף אליו מחכה לראשון */
 export const RESERVE_TTL_MS = 10 * 60 * 1000;
 /** אחרי כמה זמן בלי שינוי חדר נמחק */
 export const IDLE_TTL_MS = 2 * 60 * 60 * 1000;
+/** כמה זמן מחכים למארח שהתנתק לפני שהאירוח עובר. טלפון שננעל לרגע לא אמור לאבד את האירוח */
+export const HOST_AWAY_MS = 2 * 60 * 1000;
 
 /** כמו ברירת המחדל של הטלפון האחד, והצבעה גלויה */
 export const DEFAULT_SETTINGS: RoomSettings = {
@@ -249,13 +253,70 @@ function leaveRound(room: Room, playerId: string): Room {
   return withRound(next, round.guessPending ? without : checkWinner(without));
 }
 
-function remove(room: Room, playerId: string, now: number): Room {
-  const index = room.players.findIndex((player) => player.id === playerId);
-  const players = room.players.filter((player) => player.id !== playerId);
+/**
+ * המחליף של המארח: השחקן המחובר הבא בסדר הישיבה אחרי from (עם כיוון השעון).
+ * אם אף אחד לא מחובר, פשוט הבא בתור. null אם אין אף אחד אחר
+ */
+function nextHost(room: Room, from: string, connected: ReadonlySet<string>): string | null {
+  const index = room.players.findIndex((player) => player.id === from);
+  const others = [...room.players.slice(index + 1), ...room.players.slice(0, Math.max(index, 0))].filter(
+    (player) => player.id !== from,
+  );
+  return (others.find((player) => connected.has(player.id)) ?? others[0])?.id ?? null;
+}
+
+/** שחקן יוצא או מוצא. אם זה המארח: לשחקן שבחר (newHostId), ואם לא בחר, לשחקן המחובר הבא */
+function remove(room: Room, playerId: string, now: number, connected: ReadonlySet<string>, newHostId?: string): Room {
   let hostId = room.hostId;
-  // המארח יצא: האירוח עובר לשחקן הבא בסדר הישיבה
-  if (hostId === playerId) hostId = players.length > 0 ? players[index % players.length].id : null;
-  return leaveRound({ ...room, players, hostId, lastActivity: now }, playerId);
+  let hostAwaySince = room.hostAwaySince;
+  if (hostId === playerId) {
+    const chosen = !!newHostId && newHostId !== playerId && room.players.some((player) => player.id === newHostId);
+    hostId = chosen ? newHostId! : nextHost(room, playerId, connected);
+    hostAwaySince = undefined;
+  }
+  const players = room.players.filter((player) => player.id !== playerId);
+  return leaveRound({ ...room, players, hostId, hostAwaySince, lastActivity: now }, playerId);
+}
+
+/** יש הצבעה או ניחוש פתוחים: לא משנים עכשיו סדר או אירוח, כדי שהמסכים לא יזוזו באמצע */
+function busy(room: Room): boolean {
+  return !!room.vote || !!room.freeGuess || !!room.round?.guessPending;
+}
+
+/**
+ * סדר ישיבה חדש באמצע סבב: מי שבסבב ועדיין בחדר מסודר לפי הסדר החדש, ומי שיצא נשאר במקומו.
+ * מי שהתחיל נשאר אותו שחקן, גם אם המקום שלו ברשימה השתנה.
+ */
+function reorderRound(round: Round, order: readonly string[]): Round {
+  const inRound = new Set(round.players.map((player) => player.id));
+  const queue = order.filter((id) => inRound.has(id));
+  const byId = new Map(round.players.map((player) => [player.id, player]));
+  const players = round.players.map((player) => (order.includes(player.id) ? byId.get(queue.shift()!)! : player));
+  const starterId = round.players[round.startIndex].id;
+  return { ...round, players, startIndex: players.findIndex((player) => player.id === starterId) };
+}
+
+/** המארח התנתק או חזר: מתעדכן מתי הוא נעלם. נקרא כשטלפון מתחבר או מתנתק */
+export function trackHost(room: Room, connected: ReadonlySet<string>, now: number): Room {
+  const away = !!room.hostId && !connected.has(room.hostId);
+  if (away && room.hostAwaySince === undefined) return { ...room, hostAwaySince: now };
+  if (!away && room.hostAwaySince !== undefined) return { ...room, hostAwaySince: undefined };
+  return room;
+}
+
+/** המארח מנותק כבר awayMs: האירוח עובר לשחקן המחובר הבא. אם אף אחד לא מחובר, מחכים */
+export function hostTimeout(room: Room, connected: ReadonlySet<string>, now: number, awayMs = HOST_AWAY_MS): Room {
+  if (room.hostAwaySince === undefined || !room.hostId || now < room.hostAwaySince + awayMs) return room;
+  if (connected.has(room.hostId)) return { ...room, hostAwaySince: undefined };
+  const next = nextHost(room, room.hostId, connected);
+  if (!next || !connected.has(next)) return room;
+  return { ...room, hostId: next, hostAwaySince: undefined, lastActivity: now };
+}
+
+/** מתי ה-Durable Object צריך להתעורר: ניקוי החדר, או העברת אירוח ממארח שנעלם */
+export function nextAlarm(room: Room, awayMs = HOST_AWAY_MS): number {
+  const cleanup = cleanupAt(room);
+  return room.hostAwaySince === undefined ? cleanup : Math.min(cleanup, room.hostAwaySince + awayMs);
 }
 
 /** סבב חדש עם כל השחקנים בחדר, לפי סדר הישיבה וההגדרות */
@@ -329,20 +390,31 @@ export function act(room: Room, playerId: string, message: ClientMessage, now: n
     message.type.startsWith('round:') ||
     message.type === 'game:start' ||
     message.type === 'reveal:skip' ||
-    message.type === 'scores:reset';
+    message.type === 'scores:reset' ||
+    message.type === 'host:transfer';
   if (hostOnly && !isHost) return { error: 'not_host' };
   const touch = (next: Room): ActionResult => ({ room: next === room ? room : { ...next, lastActivity: now } });
 
   switch (message.type) {
     case 'room:leave':
-      return { room: remove(room, playerId, now), left: { playerId, reason: 'left' } };
+      return { room: remove(room, playerId, now, connected, message.newHostId), left: { playerId, reason: 'left' } };
 
     case 'lobby:kick': {
       if (message.playerId === playerId || !room.players.some((p) => p.id === message.playerId)) {
         return { error: 'bad_message' };
       }
-      return { room: remove(room, message.playerId, now), left: { playerId: message.playerId, reason: 'kicked' } };
+      return {
+        room: remove(room, message.playerId, now, connected),
+        left: { playerId: message.playerId, reason: 'kicked' },
+      };
     }
+
+    case 'host:transfer':
+      if (message.playerId === playerId || !room.players.some((p) => p.id === message.playerId)) {
+        return { error: 'bad_message' };
+      }
+      if (busy(room)) return { error: 'busy' };
+      return touch({ ...room, hostId: message.playerId, hostAwaySince: undefined });
 
     case 'lobby:reorder': {
       const ids = message.playerIds;
@@ -351,8 +423,10 @@ export function act(room: Room, playerId: string, message: ClientMessage, now: n
         new Set(ids).size === ids.length &&
         room.players.every((player) => ids.includes(player.id));
       if (!sameSet) return { error: 'bad_order' };
+      if (busy(room)) return { error: 'busy' };
       const byId = new Map(room.players.map((player) => [player.id, player]));
-      return touch({ ...room, players: ids.map((id) => byId.get(id)!) });
+      const round = room.round && room.phase !== 'lobby' ? reorderRound(room.round, ids) : room.round;
+      return touch({ ...room, players: ids.map((id) => byId.get(id)!), round });
     }
 
     case 'lobby:settings':
@@ -541,7 +615,6 @@ export function parseSettings(value: unknown): RoomSettings | null {
 
 /** הודעות בלי שדות: הסוג מספיק */
 const BARE: readonly ClientMessage['type'][] = [
-  'room:leave',
   'game:start',
   'role:seen',
   'reveal:skip',
@@ -581,8 +654,12 @@ export function parseMessage(raw: string): ClientMessage | null {
       return isToken(msg.token) && typeof msg.version === 'number'
         ? { type: 'room:rejoin', token: msg.token, version: msg.version }
         : null;
+    case 'room:leave':
+      return isString(msg.newHostId) ? { type: 'room:leave', newHostId: msg.newHostId } : { type: 'room:leave' };
     case 'lobby:kick':
       return isString(msg.playerId) ? { type: 'lobby:kick', playerId: msg.playerId } : null;
+    case 'host:transfer':
+      return isString(msg.playerId) ? { type: 'host:transfer', playerId: msg.playerId } : null;
     case 'lobby:reorder':
       return Array.isArray(msg.playerIds) && msg.playerIds.length <= MAX_PLAYERS && msg.playerIds.every((id) => isString(id))
         ? { type: 'lobby:reorder', playerIds: msg.playerIds }
