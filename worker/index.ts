@@ -1,10 +1,11 @@
 /**
  * ה-Worker של המשחק.
  * קבצי המשחק מוגשים ישירות מ-dist (וזה בחינם). רק בקשות ל-/api/ מגיעות לכאן (run_worker_first ב-wrangler.jsonc):
- *   POST /api/rooms            פתיחת חדר: מגריל קוד פנוי ומחזיר { code }
+ *   POST /api/rooms            פתיחת חדר: מגריל קוד פנוי ומחזיר { code }. בגוף: { version, settings? }
  *   GET  /api/rooms/<code>/ws  WebSocket לחדר, מנותב ל-Durable Object של הקוד
  */
 import { CODE_LENGTH, PROTOCOL_VERSION, isRoomCode } from '../src/online/protocol';
+import { DEFAULT_SETTINGS, parseSettings } from './logic';
 
 export { Room } from './room';
 
@@ -33,12 +34,13 @@ export default {
 } satisfies ExportedHandler<Env>;
 
 async function createRoom(request: Request, env: Env): Promise<Response> {
-  const body = await request.json<{ version?: unknown }>().catch(() => null);
+  const body = await request.json<{ version?: unknown; settings?: unknown }>().catch(() => null);
   if (body?.version !== PROTOCOL_VERSION) return error(409, 'outdated');
+  const settings = parseSettings(body.settings) ?? DEFAULT_SETTINGS;
 
   for (let attempt = 0; attempt < CREATE_ATTEMPTS; attempt++) {
     const code = randomCode();
-    if (await env.ROOMS.getByName(code).reserve(code)) return Response.json({ code });
+    if (await env.ROOMS.getByName(code).reserve(code, settings)) return Response.json({ code });
   }
   return error(503, 'no_free_code');
 }

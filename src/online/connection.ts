@@ -1,4 +1,4 @@
-import { PROTOCOL_VERSION, type ClientMessage, type ServerMessage } from './protocol';
+import { PROTOCOL_VERSION, type ClientMessage, type RoomSettings, type ServerMessage } from './protocol';
 
 export type ConnectionStatus = 'connecting' | 'open' | 'reconnecting';
 
@@ -137,13 +137,13 @@ export class RoomConnection {
 
 export type CreateRoomResult = { code: string } | { error: 'outdated' | 'network' };
 
-/** פתיחת חדר: השרת מגריל קוד פנוי */
-export async function createRoom(): Promise<CreateRoomResult> {
+/** פתיחת חדר: השרת מגריל קוד פנוי. ההגדרות הן ההתחלה של החדר, והמארח יכול לשנות אותן בלובי */
+export async function createRoom(settings: RoomSettings): Promise<CreateRoomResult> {
   try {
     const response = await fetch('/api/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ version: PROTOCOL_VERSION }),
+      body: JSON.stringify({ version: PROTOCOL_VERSION, settings }),
     });
     if (response.status === 409) return { error: 'outdated' };
     if (!response.ok) return { error: 'network' };

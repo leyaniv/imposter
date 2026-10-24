@@ -13,7 +13,7 @@ import { useWakeLock } from './hooks/useWakeLock';
 import { he } from './i18n/he';
 import HomeScreen from './screens/HomeScreen';
 import PassScreen from './screens/PassScreen';
-import RevealScreen from './screens/RevealScreen';
+import RevealScreen, { roundRole } from './screens/RevealScreen';
 import RoundEndScreen from './screens/RoundEndScreen';
 import RulesScreen from './screens/RulesScreen';
 import AboutScreen from './screens/AboutScreen';
@@ -128,8 +128,7 @@ export default function App() {
       const isLast = round!.revealIndex === round!.players.length - 1;
       screen = (
         <RevealScreen
-          round={round!}
-          playerIndex={round!.revealIndex}
+          role={roundRole(round!, round!.revealIndex)}
           doneLabel={isLast ? he.reveal.last : he.reveal.next}
           onDone={() => dispatch({ type: 'nextPlayer' })}
         />

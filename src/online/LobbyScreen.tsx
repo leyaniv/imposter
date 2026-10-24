@@ -1,31 +1,51 @@
 import { useEffect, useRef, useState } from 'react';
 import ConfirmDialog from '../components/ConfirmDialog';
 import DragHandle from '../components/DragHandle';
+import GameSettingsFields from '../components/GameSettingsFields';
 import StickyActions from '../components/StickyActions';
-import { MIN_PLAYERS } from '../game/setup';
+import { MIN_PLAYERS, maxImposters } from '../game/setup';
 import { useDragReorder } from '../hooks/useDragReorder';
 import { he } from '../i18n/he';
 import { shareRoom } from '../ui/share';
+import ConnectionNotice from './ConnectionNotice';
 import type { ConnectionStatus } from './connection';
-import { formatCode, type PublicPlayer, type RoomState } from './protocol';
+import { formatCode, type PublicPlayer, type RoomSettings, type RoomState } from './protocol';
 
 interface Props {
   state: RoomState;
   status: ConnectionStatus;
-  /** עולה בכל לחיצה על "חזרה" בטלפון: שואלים אם לצאת מהחדר */
-  leaveRequests: number;
+  allCategories: string[];
   onReorder: (playerIds: string[]) => void;
   onKick: (playerId: string) => void;
-  onLeave: () => void;
+  onSettings: (settings: RoomSettings) => void;
+  onStart: () => void;
+  onAskLeave: () => void;
 }
 
-/** הלובי: הקוד, קישור לשיתוף, ומי בחדר לפי סדר הישיבה. המארח מסדר ומוציא שחקנים */
-export default function LobbyScreen({ state, status, leaveRequests, onReorder, onKick, onLeave }: Props) {
+/** "כל הקטגוריות · מתחזה אחד · המתחזה לא מתחיל", בשביל מי שלא מארח */
+function settingsSummary(settings: RoomSettings, playerCount: number): string {
+  const imposters = Math.min(settings.imposterCount, maxImposters(playerCount));
+  return [
+    settings.categories.length === 0
+      ? he.online.lobby.allCategories
+      : settings.categories.length <= 2
+        ? settings.categories.join(', ')
+        : he.online.lobby.categories(settings.categories.length),
+    he.setup.imposters(imposters),
+    settings.imposterNeverStarts && he.online.lobby.imposterNeverStarts,
+    settings.showCategory && he.online.lobby.showCategory,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+/** הלובי: הקוד, קישור לשיתוף, מי בחדר לפי סדר הישיבה, וההגדרות. המארח מסדר, מוציא, בוחר הגדרות ומתחיל */
+export default function LobbyScreen({ state, status, allCategories, onReorder, onKick, onSettings, onStart, onAskLeave }: Props) {
   const isHost = state.hostId === state.you;
   // בזמן גרירה הרשימה זזה מיד אצלנו, והשרת מקבל את הסדר החדש בסוף הגרירה
   const [localOrder, setLocalOrder] = useState<PublicPlayer[] | null>(null);
   const [kickId, setKickId] = useState<string | null>(null);
-  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [confirmStart, setConfirmStart] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const players = localOrder ?? state.players;
@@ -41,10 +61,6 @@ export default function LobbyScreen({ state, status, leaveRequests, onReorder, o
   }, [state.players]);
 
   useEffect(() => {
-    if (leaveRequests > 0) setConfirmLeave(true);
-  }, [leaveRequests]);
-
-  useEffect(() => {
     if (!copied) return;
     const timer = setTimeout(() => setCopied(false), 3000);
     return () => clearTimeout(timer);
@@ -54,16 +70,16 @@ export default function LobbyScreen({ state, status, leaveRequests, onReorder, o
     if ((await shareRoom(state.code)) === 'copied') setCopied(true);
   };
 
+  const offline = state.players.filter((player) => !player.connected);
+  const enough = state.players.length >= MIN_PLAYERS;
+  const start = () => (offline.length > 0 ? setConfirmStart(true) : onStart());
+
   const kickTarget = state.players.find((player) => player.id === kickId);
 
   return (
     <main className="screen">
       <div className="screen-body">
-        {status !== 'open' && (
-          <p className="notice connection-notice" role="status">
-            {status === 'connecting' ? he.online.connecting : he.online.reconnecting}
-          </p>
-        )}
+        <ConnectionNotice status={status} />
 
         <div className="room-code-card">
           <p className="muted">{he.online.lobby.code}</p>
@@ -102,20 +118,32 @@ export default function LobbyScreen({ state, status, leaveRequests, onReorder, o
             ))}
           </ol>
         </section>
+
+        {isHost ? (
+          <GameSettingsFields
+            settings={state.settings}
+            playerCount={state.players.length}
+            allCategories={allCategories}
+            onChange={(change) => onSettings({ ...state.settings, ...change })}
+          />
+        ) : (
+          <section className="field">
+            <h2 className="label">{he.online.lobby.settings}</h2>
+            <p className="help">{settingsSummary(state.settings, state.players.length)}</p>
+          </section>
+        )}
       </div>
 
       <StickyActions>
         {isHost && (
           <>
-            <p className="help center-text">
-              {players.length < MIN_PLAYERS ? he.online.lobby.minPlayers(MIN_PLAYERS) : he.online.lobby.comingSoon}
-            </p>
-            <button className="btn btn-primary" disabled>
+            {!enough && <p className="help center-text">{he.online.lobby.minPlayers(MIN_PLAYERS)}</p>}
+            <button className="btn btn-primary" disabled={!enough} onClick={start}>
               {he.online.lobby.start}
             </button>
           </>
         )}
-        <button className="btn btn-ghost" onClick={() => setConfirmLeave(true)}>
+        <button className="btn btn-ghost" onClick={onAskLeave}>
           {he.online.lobby.leave}
         </button>
       </StickyActions>
@@ -136,13 +164,16 @@ export default function LobbyScreen({ state, status, leaveRequests, onReorder, o
           onCancel={() => setKickId(null)}
         />
       )}
-      {confirmLeave && (
+      {confirmStart && (
         <ConfirmDialog
-          message={he.online.lobby.leaveConfirm}
-          confirmLabel={he.online.lobby.leaveYes}
-          cancelLabel={he.online.lobby.stay}
-          onConfirm={onLeave}
-          onCancel={() => setConfirmLeave(false)}
+          message={he.online.lobby.offlineWarning(offline.map((player) => player.name).join(', '))}
+          confirmLabel={he.online.lobby.startAnyway}
+          cancelLabel={he.common.cancel}
+          onConfirm={() => {
+            setConfirmStart(false);
+            onStart();
+          }}
+          onCancel={() => setConfirmStart(false)}
         />
       )}
     </main>

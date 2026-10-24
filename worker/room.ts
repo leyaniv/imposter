@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
-import type { ClientMessage, ErrorCode, LeftReason, ServerMessage } from '../src/online/protocol';
-import { act, cleanupAt, createRoom, join, parseMessage, rejoin, view, type Room as RoomData } from './logic';
+import type { ClientMessage, ErrorCode, LeftReason, RoomSettings, ServerMessage } from '../src/online/protocol';
+import { act, cleanupAt, createRoom, join, parseMessage, rejoin, upgradeRoom, view, type Room as RoomData } from './logic';
 
 /** מה שמוצמד לכל WebSocket. נשמר גם כשהחדר "ישן" */
 interface Attachment {
@@ -23,14 +23,15 @@ export class Room extends DurableObject<Env> {
     // ping/pong בלי להעיר את החדר ובלי חיוב
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
     ctx.blockConcurrencyWhile(async () => {
-      this.room = await ctx.storage.get<RoomData>('room');
+      const saved = await ctx.storage.get<RoomData>('room');
+      this.room = saved && upgradeRoom(saved);
     });
   }
 
-  /** נקרא מה-Worker כשפותחים חדר. false אם הקוד כבר תפוס */
-  async reserve(code: string): Promise<boolean> {
+  /** נקרא מה-Worker כשפותחים חדר, עם ההגדרות האחרונות של המארח. false אם הקוד כבר תפוס */
+  async reserve(code: string, settings: RoomSettings): Promise<boolean> {
     if (this.room) return false;
-    await this.save(createRoom(code, Date.now()));
+    await this.save(createRoom(code, Date.now(), settings));
     return true;
   }
 

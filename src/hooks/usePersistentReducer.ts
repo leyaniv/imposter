@@ -28,3 +28,8 @@ export function usePersistentReducer() {
 
   return [state, dispatch] as const;
 }
+
+/** ההגדרות האחרונות של מצב הטלפון האחד, בשביל חדר חדש במצב "כל אחד בטלפון שלו" */
+export function loadSavedSettings() {
+  return load().settings;
+}

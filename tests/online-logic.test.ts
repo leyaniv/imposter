@@ -177,6 +177,8 @@ describe('view', () => {
         { id: 'p2', name: 'יוסי', connected: false },
       ],
       you: 'p2',
+      phase: 'lobby',
+      settings: { categories: [], imposterCount: 1, imposterNeverStarts: true, showCategory: false },
     });
     expect(JSON.stringify(state)).not.toContain('t-');
     expect(JSON.stringify(state)).not.toContain('token');

@@ -11,7 +11,7 @@ import ChoosePlayerScreen from './ChoosePlayerScreen';
 import GuessScreen from './GuessScreen';
 import OutcomeScreen from './OutcomeScreen';
 import PassScreen from './PassScreen';
-import RevealScreen from './RevealScreen';
+import RevealScreen, { roundRole } from './RevealScreen';
 
 interface Props {
   round: Round;
@@ -98,8 +98,7 @@ export default function StartScreen({
     return (
       <RevealScreen
         key="reveal"
-        round={round}
-        playerIndex={overlay.index}
+        role={roundRole(round, overlay.index)}
         doneLabel={he.forgot.done}
         onDone={() => setOverlay(null)}
       />

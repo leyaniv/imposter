@@ -1,10 +1,10 @@
-// בדיקת עשן לשרת של מצב "כל אחד בטלפון שלו": שלושה "טלפונים" פותחים חדר, מצטרפים, מתנתקים וחוזרים.
+// בדיקת עשן לשרת של מצב "כל אחד בטלפון שלו": שלושה "טלפונים" פותחים חדר, מצטרפים, משחקים סבב, מתנתקים וחוזרים.
 // מריצים מול wrangler dev:  npm run dev:worker  ואז  node scripts/smoke-online.mjs [http://localhost:5182]
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
 const BASE = process.argv[2] ?? 'http://localhost:5182';
-const VERSION = 1;
+const VERSION = 2;
 
 /** טלפון אחד: WebSocket שאוסף את ההודעות */
 async function phone(code) {
@@ -103,6 +103,31 @@ async function main() {
   assert.equal(back.players.find((p) => p.id === back.you).name, 'יוסי');
   await dana.stateWhere((s) => s.players.every((p) => p.connected));
   console.log('rejoin ok');
+
+  // סבב: כל טלפון מקבל רק את התפקיד שלו. מתחזה אחד, ולכל השאר אותה מילה
+  yossi2.send({ type: 'game:start' });
+  assert.equal((await yossi2.next((m) => m.type === 'error')).code, 'not_host');
+  dana.send({ type: 'game:start' });
+  const phones = { dana, yossi: yossi2, roni };
+  const roles = [];
+  for (const p of Object.values(phones)) {
+    const s = await p.stateWhere((s) => s.phase === 'reveal');
+    assert.equal(s.round.reveal, undefined, 'nothing is revealed before the end');
+    assert.ok(!JSON.stringify(s).includes('imposterIds'));
+    roles.push(s.round.role);
+  }
+  assert.equal(roles.filter((r) => r.kind === 'imposter').length, 1);
+  const words = new Set(roles.filter((r) => r.kind === 'crew').map((r) => r.word));
+  assert.equal(words.size, 1);
+  for (const p of Object.values(phones)) p.send({ type: 'role:seen' });
+  await roni.stateWhere((s) => s.phase === 'play');
+  dana.send({ type: 'round:end' });
+  const end = await roni.stateWhere((s) => s.phase === 'roundEnd');
+  assert.ok(words.has(end.round.reveal.word));
+  assert.equal(end.round.reveal.imposters.length, 1);
+  dana.send({ type: 'round:lobby' });
+  await yossi2.stateWhere((s) => s.phase === 'lobby' && !s.round);
+  console.log('round ok');
 
   // join חוזר עם אותו טוקן (התשובה הקודמת לא הגיעה) לא יוצר שחקן כפול
   const roni2 = await phone(code);
