@@ -11,6 +11,15 @@ export type RoomEnd =
   | { kind: 'replaced' }
   | { kind: 'error'; code: ErrorCode };
 
+/**
+ * טוקן אקראי לשחקן. crypto.randomUUID קיים רק בדף מאובטח (HTTPS או localhost),
+ * ובבדיקה מהטלפון מול המחשב בכתובת 192.168.x.x הוא חסר. getRandomValues קיים בכל מקום
+ */
+function newToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 /** שגיאות שאחריהן אין טעם להישאר מחוברים */
 const FATAL: readonly ErrorCode[] = ['outdated', 'room_not_found', 'room_full', 'name_required', 'name_taken', 'bad_token'];
 
@@ -39,7 +48,7 @@ export function useRoom(code: string, name: string) {
     const conn = new RoomConnection(roomSocketUrl(code), {
       onOpen: () => {
         if (!session) {
-          session = { code, token: crypto.randomUUID(), joined: false };
+          session = { code, token: newToken(), joined: false };
           saveSession(session);
         }
         conn.send(
