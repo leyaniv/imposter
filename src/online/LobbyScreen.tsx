@@ -5,10 +5,11 @@ import Scoreboard from '../components/Scoreboard';
 import StickyActions from '../components/StickyActions';
 import { MIN_PLAYERS, maxImposters } from '../game/setup';
 import { he } from '../i18n/he';
-import { shareRoom } from '../ui/share';
+import { roomUrl, shareRoom } from '../ui/share';
 import ConnectionNotice from './ConnectionNotice';
 import type { ConnectionStatus } from './connection';
 import PlayerActions from './PlayerActions';
+import RoomQr from './RoomQr';
 import { formatCode, type PublicPlayer, type RoomSettings, type RoomState } from './protocol';
 import SeatList from './SeatList';
 
@@ -60,6 +61,8 @@ export default function LobbyScreen({
   const [actionsFor, setActionsFor] = useState<PublicPlayer | null>(null);
   const [confirmStart, setConfirmStart] = useState(false);
   const [copied, setCopied] = useState(false);
+  // מי שרוצה שיסרקו ממנו פותח את הקוד. מוסתר בהתחלה, כדי לא לתפוס את רוב המסך
+  const [showQr, setShowQr] = useState(false);
 
   useEffect(() => {
     if (!copied) return;
@@ -86,8 +89,12 @@ export default function LobbyScreen({
             {formatCode(state.code)}
           </p>
           {!isHost && <p className="help">{he.online.lobby.waitingHost}</p>}
+          {showQr && <RoomQr url={roomUrl(state.code)} label={he.online.lobby.qrLabel(formatCode(state.code))} />}
           <button className="btn btn-secondary" onClick={share}>
             {he.online.lobby.share}
+          </button>
+          <button className="link-btn" onClick={() => setShowQr(!showQr)}>
+            {showQr ? he.online.lobby.hideQr : he.online.lobby.showQr}
           </button>
         </div>
 

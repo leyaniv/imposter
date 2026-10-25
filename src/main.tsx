@@ -15,7 +15,7 @@ import './styles/global.css';
 registerServiceWorker();
 initAnalytics();
 
-// מצב "כל אחד בטלפון שלו" עוד בבנייה: נכנסים אליו רק מקישור עם ?online או ?room=<קוד>.
+// מצב "כל אחד בטלפון שלו": נכנסים אליו מהכפתור במסך הבית (?online) או מקישור לחדר (?room=<קוד>).
 // הוא חלק מהקובץ הראשי ולא נטען בנפרד (רק כ-4KB): טעינה נפרדת שנכשלת ברשת סלולרית משאירה מסך ריק
 const params = new URLSearchParams(location.search);
 const online = params.has('online') || params.has('room');

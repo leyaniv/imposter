@@ -1134,6 +1134,13 @@ a.btn-ghost {
   font-weight: 600;
 }
 
+/* קוד QR לחדר: לבן גם במצב כהה, עם שוליים, כדי שכל מצלמה תסרוק */
+.room-qr {
+  width: min(220px, 60vw);
+  height: auto;
+  border-radius: 12px;
+}
+
 /* בחירת מחליף למארח שיוצא */
 .host-choice {
   display: flex;

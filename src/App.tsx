@@ -61,6 +61,7 @@ export default function App() {
         <HomeScreen
           showScores={hasScores(state.settings.players, state.scores)}
           onNewGame={() => dispatch({ type: 'openSetup' })}
+          onOnline={() => location.assign('./?online')}
           onScores={() => dispatch({ type: 'openScores' })}
           onRules={() => dispatch({ type: 'openRules' })}
           onAbout={() => dispatch({ type: 'openAbout' })}
