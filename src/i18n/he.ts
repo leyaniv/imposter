@@ -52,7 +52,15 @@ export const he = {
     movePlayer: (name: string) => `הזזת ${name}. גוררים, או משתמשים בחיצים למעלה ולמטה`,
     duplicateName: (name: string) => `יש יותר משחקן אחד בשם ${name}. כדאי להוסיף משהו לשם, כדי שלא יתבלבלו.`,
     categories: 'קטגוריות',
-    allCategories: 'בחירת הכול',
+    categoriesAll: 'הכל',
+    categoriesCustom: 'מותאם אישית',
+    categoriesEdit: 'שינוי',
+    categoriesPick: 'בחירת קטגוריות',
+    categoriesPickHelp: 'מדליקים ומכבים קטגוריות. צריך לפחות אחת.',
+    categoriesDone: 'סיום',
+    /** "ספורט, מוזיקה, חפצים ועוד 2" */
+    categoriesChosen: (names: string[]) =>
+      names.length <= 3 ? names.join(', ') : `${names.slice(0, 3).join(', ')} ועוד ${names.length - 3}`,
     freshWords: (n: number) =>
       n === 0 ? 'כל המילים כאן כבר יצאו. מתחילים סבב מילים חדש.' : `${n} מילים שעוד לא יצאו`,
     resetUsedWords: 'איפוס',

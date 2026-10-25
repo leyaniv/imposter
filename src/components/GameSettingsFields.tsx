@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { MIN_PLAYERS_FOR_TWO_IMPOSTERS, maxImposters } from '../game/setup';
 import type { Settings } from '../game/types';
-import { toggleCategory } from '../game/words';
 import { he } from '../i18n/he';
+import CategoryPicker from './CategoryPicker';
 
 export type GameSettings = Omit<Settings, 'players'>;
 
@@ -27,6 +27,7 @@ interface Props {
 /** ההגדרות של המשחק (בלי השחקנים): קטגוריות, מספר מתחזים, ומי רואה מה. משותף למסך ההגדרות וללובי */
 export default function GameSettingsFields({ settings, playerCount, allCategories, words, onChange }: Props) {
   const [justReset, setJustReset] = useState(false);
+  const [picking, setPicking] = useState(false);
 
   useEffect(() => {
     if (!justReset) return;
@@ -40,18 +41,40 @@ export default function GameSettingsFields({ settings, playerCount, allCategorie
   };
 
   const allSelected = settings.categories.length === 0;
-  const isSelected = (category: string) => allSelected || settings.categories.includes(category);
+  // לפי הסדר במאגר, ובלי קטגוריות שכבר לא קיימות
+  const chosen = allCategories.filter((category) => settings.categories.includes(category));
   const twoAllowed = maxImposters(playerCount) === 2;
 
   return (
     <>
       <section className="field">
-        <div className="label-row">
-          <h2 className="label">{he.setup.categories}</h2>
-          <button className="link-btn" disabled={allSelected} onClick={() => onChange({ categories: [] })}>
-            {he.setup.allCategories}
+        <h2 className="label">{he.setup.categories}</h2>
+        <div className="segmented" role="radiogroup" aria-label={he.setup.categories}>
+          <button
+            role="radio"
+            aria-checked={allSelected}
+            className={`segment${allSelected ? ' segment-on' : ''}`}
+            onClick={() => onChange({ categories: [] })}
+          >
+            {he.setup.categoriesAll}
+          </button>
+          <button
+            role="radio"
+            aria-checked={!allSelected}
+            className={`segment${allSelected ? '' : ' segment-on'}`}
+            onClick={() => setPicking(true)}
+          >
+            {he.setup.categoriesCustom}
           </button>
         </div>
+        {!allSelected && (
+          <div className="label-row">
+            <p className="help">{he.setup.categoriesChosen(chosen)}</p>
+            <button className="link-btn" onClick={() => setPicking(true)}>
+              {he.setup.categoriesEdit}
+            </button>
+          </div>
+        )}
         {words && (
           <div className="label-row">
             <p className="help" aria-live="polite">
@@ -64,19 +87,16 @@ export default function GameSettingsFields({ settings, playerCount, allCategorie
             )}
           </div>
         )}
-        <div className="chips">
-          {allCategories.map((category) => (
-            <button
-              key={category}
-              className={`chip${isSelected(category) ? ' chip-on' : ''}`}
-              aria-pressed={isSelected(category)}
-              onClick={() => onChange({ categories: toggleCategory(allCategories, settings.categories, category) })}
-            >
-              {category}
-            </button>
-          ))}
-        </div>
       </section>
+
+      {picking && (
+        <CategoryPicker
+          allCategories={allCategories}
+          selected={settings.categories}
+          onChange={(categories) => onChange({ categories })}
+          onClose={() => setPicking(false)}
+        />
+      )}
 
       <section className="field">
         <h2 className="label">{he.setup.imposterCount}</h2>

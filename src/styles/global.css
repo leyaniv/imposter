@@ -1134,6 +1134,13 @@ a.btn-ghost {
   font-weight: 600;
 }
 
+/* בחירת קטגוריות בחלון: הרשימה נגללת כשהיא ארוכה */
+.category-picker-chips {
+  max-height: 50vh;
+  overflow-y: auto;
+  justify-content: center;
+}
+
 /* "משחק חדש": בורר מקומי/מקוון וסימן שאלה שפותח הסבר */
 .mode-row {
   display: flex;
