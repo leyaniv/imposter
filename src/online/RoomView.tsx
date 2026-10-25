@@ -1,43 +1,34 @@
 import { useEffect, useRef, useState } from 'react';
+import type { GameMode } from '../components/ModeToggle';
+import type { LocalSetup } from '../screens/LocalSetupFields';
 import { track, type EventData } from '../analytics/posthog';
-import words from '../data/words.he.json';
 import { MAX_PLAYERS, maxImposters } from '../game/setup';
-import type { WordEntry, WordProblem } from '../game/types';
-import { listCategories } from '../game/words';
+import type { Settings } from '../game/types';
+import type { WordProblem } from '../game/types';
 import { useBackGuard } from '../hooks/useBackGuard';
-import { loadSavedSettings } from '../hooks/usePersistentReducer';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { he } from '../i18n/he';
-import { reloadToLatest } from '../pwa/registerServiceWorker';
-import { playRevealSound, playVoteSound, unlockAudio } from '../ui/sound';
+import { playRevealSound, playVoteSound } from '../ui/sound';
 import { vibrate } from '../ui/vibrate';
-import { createRoom } from './connection';
-import EntryScreen from './EntryScreen';
 import FreeGuessOnline from './FreeGuessOnline';
 import HostMenu from './HostMenu';
 import LeaveDialog from './LeaveDialog';
+import HostSetup from './HostSetup';
 import LobbyScreen from './LobbyScreen';
 import MessageScreen from './MessageScreen';
 import OutcomeOnline from './OutcomeOnline';
 import PlayOnline from './PlayOnline';
-import { isRoomCode, type ClientMessage, type ErrorCode, type RoomSettings, type RoomState } from './protocol';
+import type { ClientMessage, ErrorCode, RoomSettings, RoomState } from './protocol';
 import RevealOnline from './RevealOnline';
 import RoomBar from './RoomBar';
 import RoundEndOnline from './RoundEndOnline';
 import VoteOnline from './VoteOnline';
-import { clearSession, loadName, loadSession, saveName } from './session';
+import { clearSession, saveSecretVote } from './session';
 import { useRoom, type RoomEnd } from './useRoom';
 
-const allCategories = listCategories(words as WordEntry[]);
-
-type View =
-  | { screen: 'entry'; code: string; error?: string }
-  | { screen: 'room'; code: string; name: string }
-  | { screen: 'ended'; code: string; end: RoomEnd }
-  | { screen: 'outdated' };
 
 /** שגיאות שמחזירות למסך ההצטרפות, עם הסבר */
-function entryError(code: ErrorCode): string | undefined {
+export function entryError(code: ErrorCode): string | undefined {
   switch (code) {
     case 'name_required':
     case 'name_taken':
@@ -48,110 +39,6 @@ function entryError(code: ErrorCode): string | undefined {
       return he.online.errors.room_full(MAX_PLAYERS);
     default:
       return undefined;
-  }
-}
-
-/** המסך הראשון לפי הכתובת: ?room=<code> מצטרף לחדר (או חוזר אליו אחרי ריענון), ?online פותח את המסך הראשי */
-function initialView(): View {
-  const code = new URLSearchParams(location.search).get('room') ?? '';
-  if (!isRoomCode(code)) return { screen: 'entry', code: '' };
-  return loadSession(code)?.joined ? { screen: 'room', code, name: loadName() } : { screen: 'entry', code };
-}
-
-/** הכתובת משקפת את החדר, כדי שריענון והעתקת הכתובת יחזירו לאותו מקום */
-function syncUrl(view: View) {
-  const query = view.screen === 'room' || (view.screen === 'entry' && view.code) ? `?room=${view.code}` : '?online';
-  if (location.search !== query) history.replaceState(history.state, '', query);
-}
-
-/** חדר חדש מתחיל מההגדרות האחרונות של המארח במצב הטלפון האחד */
-function initialSettings(): RoomSettings {
-  const { categories, imposterCount, imposterNeverStarts, showCategory } = loadSavedSettings();
-  return { categories, imposterCount, imposterNeverStarts, showCategory, secretVote: false };
-}
-
-/** מצב "כל אחד בטלפון שלו": פתיחת חדר, הצטרפות, לובי וסבבים */
-export default function OnlineApp() {
-  const [view, setView] = useState<View>(initialView);
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => syncUrl(view), [view]);
-
-  // צליל אפשר להשמיע רק אחרי נגיעה בדף. הנגיעה הראשונה "פותחת" את הצלילים, כדי שצליל ההצבעה הראשון יישמע
-  useEffect(() => {
-    document.addEventListener('pointerdown', unlockAudio, { once: true });
-    return () => document.removeEventListener('pointerdown', unlockAudio);
-  }, []);
-
-  const create = async (name: string) => {
-    saveName(name.trim());
-    setBusy(true);
-    const result = await createRoom(initialSettings());
-    setBusy(false);
-    if ('error' in result) {
-      if (result.error === 'outdated') setView({ screen: 'outdated' });
-      else setView({ screen: 'entry', code: '', error: he.online.errors.network });
-      return;
-    }
-    track('room_created');
-    setView({ screen: 'room', code: result.code, name: name.trim() });
-  };
-
-  const join = (code: string, name: string) => {
-    saveName(name.trim());
-    setView({ screen: 'room', code, name: name.trim() });
-  };
-
-  const onEnd = (code: string, end: RoomEnd) => {
-    if (end.kind === 'left') return setView({ screen: 'entry', code: '' });
-    if (end.kind !== 'error') return setView({ screen: 'ended', code, end });
-    if (end.code === 'outdated') return setView({ screen: 'outdated' });
-    setView({ screen: 'entry', code: end.code === 'room_not_found' ? '' : code, error: entryError(end.code) });
-  };
-
-  switch (view.screen) {
-    case 'entry':
-      return (
-        <EntryScreen
-          key={view.code}
-          code={view.code}
-          name={loadName()}
-          error={view.error}
-          busy={busy}
-          onCreate={create}
-          onJoin={join}
-          onClearCode={() => setView({ screen: 'entry', code: '' })}
-        />
-      );
-
-    case 'room':
-      return <RoomView key={view.code} code={view.code} name={view.name} onEnd={(end) => onEnd(view.code, end)} />;
-
-    case 'ended':
-      return (
-        <MessageScreen text={he.online.ended[view.end.kind === 'error' ? 'closed' : view.end.kind]}>
-          {view.end.kind === 'replaced' && (
-            <button className="btn btn-primary" onClick={() => setView({ screen: 'room', code: view.code, name: loadName() })}>
-              {he.online.ended.reconnect}
-            </button>
-          )}
-          <button
-            className={`btn ${view.end.kind === 'replaced' ? 'btn-ghost' : 'btn-primary'}`}
-            onClick={() => setView({ screen: 'entry', code: '' })}
-          >
-            {he.online.ended.toStart}
-          </button>
-        </MessageScreen>
-      );
-
-    case 'outdated':
-      return (
-        <MessageScreen title={he.online.outdated.title} text={he.online.outdated.text}>
-          <button className="btn btn-primary" onClick={reloadToLatest}>
-            {he.online.outdated.reload}
-          </button>
-        </MessageScreen>
-      );
   }
 }
 
@@ -244,8 +131,29 @@ function useHostAnalytics(state: RoomState | null) {
   }, [state]);
 }
 
-/** החדר עצמו: מחובר כל עוד המסך הזה מוצג, ומציג את המסך של השלב הנוכחי */
-function RoomView({ code, name, onEnd }: { code: string; name: string; onEnd: (end: RoomEnd) => void }) {
+interface RoomViewProps {
+  code: string;
+  name: string;
+  onEnd: (end: RoomEnd) => void;
+  /** הבורר מקומי/מקוון במסך "משחק חדש" של המארח */
+  mode: GameMode;
+  onModeChange: (mode: GameMode) => void;
+  /** המשחק המקומי, בשביל המארח שעבר ל"מקומי" בזמן שהחדר פתוח */
+  local: LocalSetup;
+  /** המארח התחיל משחק מקומי: החדר כבר נסגר */
+  onStartLocal: () => void;
+}
+
+/** ההגדרות של המשחק המקומי מתוך הגדרות החדר (בלי "הצבעה חשאית", שקיימת רק בחדר) */
+function localPart({ categories, imposterCount, imposterNeverStarts, showCategory }: RoomSettings): Partial<Settings> {
+  return { categories, imposterCount, imposterNeverStarts, showCategory };
+}
+
+/**
+ * החדר עצמו: מחובר כל עוד המסך הזה מוצג, ומציג את המסך של השלב הנוכחי.
+ * המארח נשאר מחובר גם כשהוא עובר ל"מקומי", כדי שהאירוח לא יעבור למישהו אחר
+ */
+export function RoomView({ code, name, onEnd, mode, onModeChange, local, onStartLocal }: RoomViewProps) {
   const { state, status, end, send } = useRoom(code, name);
   const [askLeave, setAskLeave] = useState(false);
   const [managing, setManaging] = useState(false);
@@ -265,9 +173,37 @@ function RoomView({ code, name, onEnd }: { code: string; name: string; onEnd: (e
   }, [end]);
 
   const leave = (newHostId?: string) => {
-    send(newHostId ? { type: 'room:leave', newHostId } : { type: 'room:leave' });
+    // מארח שנשאר לבד סוגר את החדר, במקום להשאיר חדר ריק
+    const alone = isHost && state!.players.length === 1;
+    send(alone ? { type: 'room:close' } : newHostId ? { type: 'room:leave', newHostId } : { type: 'room:leave' });
     clearSession(code);
     onEnd({ kind: 'left' });
+  };
+
+  /** משחק מקומי במקום החדר: סוגרים את החדר (מי שהצטרף מקבל "המארח סגר את החדר") ומתחילים */
+  const startLocal = () => {
+    send({ type: 'room:close' });
+    clearSession(code);
+    onStartLocal();
+  };
+
+  /** ההגדרות משותפות: שינוי בחדר נשמר גם בטלפון, ושינוי במסך המקומי נשלח גם לחדר */
+  const roomSettings = (settings: RoomSettings) => {
+    send({ type: 'lobby:settings', settings });
+    local.onChange(localPart(settings));
+    saveSecretVote(settings.secretVote);
+  };
+  const sharedLocal: LocalSetup = {
+    ...local,
+    onChange: (change) => {
+      local.onChange(change);
+      if (!state || !isHost || state.phase !== 'lobby') return;
+      const next = { ...state.settings, ...localPart({ ...state.settings, ...local.settings, ...change, secretVote: false }) };
+      const changed = (['categories', 'imposterCount', 'imposterNeverStarts', 'showCategory'] as const).some(
+        (key) => JSON.stringify(next[key]) !== JSON.stringify(state.settings[key]),
+      );
+      if (changed) send({ type: 'lobby:settings', settings: next });
+    },
   };
 
   // האירוח עבר למישהו אחר בזמן שתפריט המארח פתוח: סוגרים אותו
@@ -338,21 +274,26 @@ function RoomView({ code, name, onEnd }: { code: string; name: string; onEnd: (e
         onClose={() => setManaging(false)}
       />
     );
-  } else if (state.phase === 'lobby' || !round) {
+  } else if ((state.phase === 'lobby' || !round) && isHost) {
     screen = (
-      <LobbyScreen
+      <HostSetup
         state={state}
         status={status}
-        allCategories={allCategories}
+        mode={mode}
+        onModeChange={onModeChange}
+        local={sharedLocal}
         onReorder={reorder}
         onKick={kick}
         onTransfer={transfer}
-        onSettings={(settings) => send({ type: 'lobby:settings', settings })}
+        onSettings={roomSettings}
         onStart={() => hostAction({ type: 'game:start' })}
+        onStartLocal={startLocal}
         onResetScores={() => send({ type: 'scores:reset' })}
         onAskLeave={() => setAskLeave(true)}
       />
     );
+  } else if (state.phase === 'lobby' || !round) {
+    screen = <LobbyScreen state={state} status={status} onAskLeave={() => setAskLeave(true)} />;
   } else if (state.phase === 'roundEnd') {
     screen = (
       <RoundEndOnline

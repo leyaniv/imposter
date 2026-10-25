@@ -55,3 +55,41 @@ export function clearSession(code: string) {
     // לא קריטי
   }
 }
+
+const MODE_KEY = 'imposter:mode';
+const SECRET_VOTE_KEY = 'imposter:secretVote';
+
+/** המצב האחרון שנבחר במסך "משחק חדש" בטלפון הזה */
+export function loadMode(): 'local' | 'online' {
+  try {
+    return localStorage.getItem(MODE_KEY) === 'online' ? 'online' : 'local';
+  } catch {
+    return 'local';
+  }
+}
+
+export function saveMode(mode: 'local' | 'online') {
+  try {
+    localStorage.setItem(MODE_KEY, mode);
+  } catch {
+    // לא קריטי: בפעם הבאה יתחיל מ"מקומי"
+  }
+}
+
+/** "הצבעה חשאית" היא הגדרה של חדר מקוון בלבד, אז היא נשמרת כאן ולא בהגדרות של המשחק המקומי */
+export function loadSecretVote(): boolean {
+  try {
+    return localStorage.getItem(SECRET_VOTE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveSecretVote(secretVote: boolean) {
+  try {
+    if (secretVote) localStorage.setItem(SECRET_VOTE_KEY, '1');
+    else localStorage.removeItem(SECRET_VOTE_KEY);
+  } catch {
+    // לא קריטי
+  }
+}

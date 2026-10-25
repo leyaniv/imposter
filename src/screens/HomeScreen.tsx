@@ -7,13 +7,13 @@ interface Props {
   /** יש ניקוד מהערב, אז מציגים כפתור לצפייה בו */
   showScores: boolean;
   onNewGame: () => void;
-  onOnline: () => void;
+  onJoin: () => void;
   onScores: () => void;
   onRules: () => void;
   onAbout: () => void;
 }
 
-export default function HomeScreen({ showScores, onNewGame, onOnline, onScores, onRules, onAbout }: Props) {
+export default function HomeScreen({ showScores, onNewGame, onJoin, onScores, onRules, onAbout }: Props) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -55,8 +55,8 @@ export default function HomeScreen({ showScores, onNewGame, onOnline, onScores, 
         <button className="btn btn-primary" onClick={onNewGame}>
           {he.home.newGame}
         </button>
-        <button className="btn btn-secondary" onClick={onOnline}>
-          {he.home.online}
+        <button className="btn btn-secondary" onClick={onJoin}>
+          {he.home.join}
         </button>
         {showScores && (
           <button className="btn btn-secondary" onClick={onScores}>

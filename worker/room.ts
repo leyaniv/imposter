@@ -79,6 +79,7 @@ export class Room extends DurableObject<Env> {
 
     const result = act(this.room, playerId, message, Date.now(), { connected: this.connectedIds() });
     if ('error' in result) return this.reject(ws, playerId, result.error);
+    if (result.close) return this.closeRoom('hostClosed');
 
     if (result.left) this.disconnect(result.left.playerId, result.left.reason);
     // האירוח אולי עבר למישהו מנותק (או ממנו): מתחילים או מפסיקים לספור את הזמן שלו
@@ -118,15 +119,7 @@ export class Room extends DurableObject<Env> {
       this.broadcast();
     }
 
-    if (now >= cleanupAt(this.room)) {
-      for (const ws of this.ctx.getWebSockets()) {
-        send(ws, { type: 'left', reason: 'closed' });
-        ws.close(CLOSE_LEFT, 'closed');
-      }
-      this.room = undefined;
-      await this.ctx.storage.deleteAll();
-      return;
-    }
+    if (now >= cleanupAt(this.room)) return this.closeRoom('closed');
     // אם הזמן של המארח עבר ואין למי להעביר, מחכים שמישהו יתחבר (admit בודק שוב) ולא מתעוררים בלולאה
     const next = nextAlarm(this.room, this.hostAwayMs);
     await this.ctx.storage.setAlarm(next > now ? next : cleanupAt(this.room));
@@ -156,6 +149,16 @@ export class Room extends DurableObject<Env> {
     const next = hostTimeout(trackHost(this.room!, connected, Date.now()), connected, Date.now(), this.hostAwayMs);
     if (next !== this.room) await this.save(next);
     this.broadcast();
+  }
+
+  /** מנתק את כולם ומוחק את החדר: אחרי זמן בלי פעילות, או כשהמארח סגר אותו */
+  private async closeRoom(reason: LeftReason) {
+    for (const ws of this.ctx.getWebSockets()) {
+      send(ws, { type: 'left', reason });
+      ws.close(CLOSE_LEFT, reason);
+    }
+    this.room = undefined;
+    await this.ctx.storage.deleteAll();
   }
 
   /** הפעולה נדחתה. שולחים שוב את המצב, כדי שהמסך לא יישאר עם שינוי שלא קרה (למשל סדר אחר) */

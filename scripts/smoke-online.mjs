@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
 const BASE = process.argv[2] ?? 'http://localhost:5182';
-const VERSION = 4;
+const VERSION = 5;
 const HOST_AWAY_MS = Number(process.env.HOST_AWAY_MS) || 0;
 
 /** טלפון אחד: WebSocket שאוסף את ההודעות */

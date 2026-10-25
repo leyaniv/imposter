@@ -1134,6 +1134,44 @@ a.btn-ghost {
   font-weight: 600;
 }
 
+/* "משחק חדש": בורר מקומי/מקוון וסימן שאלה שפותח הסבר */
+.mode-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mode-toggle {
+  flex: 1;
+}
+
+.mode-toggle .segment {
+  padding-inline: 4px;
+  white-space: nowrap;
+}
+
+/* "טלפון לכל שחקן" בשורה אחת גם בטלפון צר */
+@media (max-width: 360px) {
+  .mode-toggle .segment {
+    font-size: 0.875rem;
+  }
+}
+
+.help-btn {
+  flex: none;
+  border: 1px solid var(--border);
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+.mode-help {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-radius: var(--radius);
+  font-weight: 400;
+}
+
 /* קוד QR לחדר: לבן גם במצב כהה, עם שוליים, כדי שכל מצלמה תסרוק */
 .room-qr {
   width: min(220px, 60vw);

@@ -175,6 +175,18 @@ describe('changing seats mid-round', () => {
   });
 });
 
+describe('closing the room', () => {
+  it('lets only the host close it', () => {
+    const room = roomWith(3);
+    expect(act(room, 'p2', { type: 'room:close' }, NOW)).toEqual({ error: 'not_host' });
+    expect(act(room, 'p1', { type: 'room:close' }, NOW)).toEqual({ room, close: true });
+  });
+
+  it('parses the message', () => {
+    expect(parseMessage('{"type":"room:close"}')).toEqual({ type: 'room:close' });
+  });
+});
+
 describe('messages and saved rooms', () => {
   it('parses the leave choice and the handover', () => {
     expect(parseMessage('{"type":"room:leave"}')).toEqual({ type: 'room:leave' });

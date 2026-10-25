@@ -131,7 +131,7 @@ export function upgradeRoom(saved: Room): Room {
 
 /** מה קרה בעקבות הודעה של שחקן שכבר בחדר */
 export type ActionResult =
-  | { room: Room; left?: { playerId: string; reason: 'left' | 'kicked' } }
+  | { room: Room; left?: { playerId: string; reason: 'left' | 'kicked' }; close?: true }
   | { error: ErrorCode };
 
 export interface ActOptions {
@@ -391,7 +391,8 @@ export function act(room: Room, playerId: string, message: ClientMessage, now: n
     message.type === 'game:start' ||
     message.type === 'reveal:skip' ||
     message.type === 'scores:reset' ||
-    message.type === 'host:transfer';
+    message.type === 'host:transfer' ||
+    message.type === 'room:close';
   if (hostOnly && !isHost) return { error: 'not_host' };
   const touch = (next: Room): ActionResult => ({ room: next === room ? room : { ...next, lastActivity: now } });
 
@@ -408,6 +409,9 @@ export function act(room: Room, playerId: string, message: ClientMessage, now: n
         left: { playerId: message.playerId, reason: 'kicked' },
       };
     }
+
+    case 'room:close':
+      return { room, close: true };
 
     case 'host:transfer':
       if (message.playerId === playerId || !room.players.some((p) => p.id === message.playerId)) {
@@ -615,6 +619,7 @@ export function parseSettings(value: unknown): RoomSettings | null {
 
 /** הודעות בלי שדות: הסוג מספיק */
 const BARE: readonly ClientMessage['type'][] = [
+  'room:close',
   'game:start',
   'role:seen',
   'reveal:skip',

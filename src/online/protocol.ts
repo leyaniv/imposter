@@ -8,8 +8,9 @@
  * 2: הגדרות, סבבים וחשיפת תפקידים.
  * 3: הצבעות, ניחושים, ניצחון וניקוד.
  * 4: העברת אירוח, בחירת מחליף ביציאה, שינוי סדר באמצע סבב.
+ * 5: המארח יכול לסגור את החדר (כשהוא עובר למשחק מקומי).
  */
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 
 export const CODE_LENGTH = 6;
 /** כמו באורך השם במסך ההגדרות */
@@ -47,6 +48,8 @@ export type ClientMessage =
   /** newHostId: רק כשהמארח יוצא, מי יחליף אותו */
   | { type: 'room:leave'; newHostId?: string }
   | { type: 'host:transfer'; playerId: string }
+  /** המארח סוגר את החדר: כולם מנותקים והחדר נמחק */
+  | { type: 'room:close' }
   | { type: 'lobby:reorder'; playerIds: string[] }
   | { type: 'lobby:kick'; playerId: string }
   | { type: 'lobby:settings'; settings: RoomSettings }
@@ -190,7 +193,8 @@ export interface RoomState {
   scores: Record<string, number>;
 }
 
-export type LeftReason = 'left' | 'kicked' | 'closed';
+/** closed: החדר נמחק אחרי זמן בלי פעילות. hostClosed: המארח סגר אותו */
+export type LeftReason = 'left' | 'kicked' | 'closed' | 'hostClosed';
 
 export type ServerMessage =
   | { type: 'state'; state: RoomState }

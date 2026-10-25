@@ -6,7 +6,7 @@ import { clearSession, loadSession, saveSession, type Session } from './session'
 
 /** למה הטלפון כבר לא בחדר */
 export type RoomEnd =
-  | { kind: 'left' | 'kicked' | 'closed' }
+  | { kind: 'left' | 'kicked' | 'closed' | 'hostClosed' }
   /** החדר נפתח בלשונית או בטלפון אחר עם אותו שחקן */
   | { kind: 'replaced' }
   | { kind: 'error'; code: ErrorCode };
