@@ -95,6 +95,12 @@ const AMBIGUOUS_UNPOINTED = [
   'שמן', 'אות', 'אף', 'פרות', 'הרים',
 ];
 
+/**
+ * רמזים שמופיעים בתוך המילה הסודית רק כצירוף מקרים של אותיות, בלי קשר למשמעות.
+ * רמז שהוא באמת חלק מהמילה (סל בכדורסל, אבל בניחום אבלים) חזק מדי: מחליפים אותו, ולא מוסיפים אותו כאן.
+ */
+const HINT_INSIDE_WORD_BY_CHANCE = ['מילקשייק: קש', 'גלישת גלים: ים'];
+
 describe('words.he.json', () => {
   it('has no ambiguous word or hint without niqqud', () => {
     const ambiguous = new Set(AMBIGUOUS_UNPOINTED);
@@ -113,6 +119,17 @@ describe('words.he.json', () => {
       expect(new Set(entry.hints).size, entry.word).toBe(3);
       for (const hint of entry.hints) expect(stripNiqqud(hint).includes(word), `${entry.word}: ${hint}`).toBe(false);
     }
+  });
+
+  it('has no hint that is part of the word (ignoring niqqud)', () => {
+    const byChance = new Set(HINT_INSIDE_WORD_BY_CHANCE);
+    const offenders = bank.flatMap((entry) =>
+      entry.hints
+        .filter((hint) => stripNiqqud(entry.word).includes(stripNiqqud(hint)))
+        .map((hint) => `${entry.word}: ${hint}`)
+        .filter((pair) => !byChance.has(pair)),
+    );
+    expect(offenders).toEqual([]);
   });
 
   it('covers 12 categories with at least 300 words and 20 per category', () => {
