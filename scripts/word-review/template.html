@@ -1,0 +1,531 @@
+<title>{{TITLE}}</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&display=swap">
+<style>
+/* Layout: one reading column (max 780px); a sticky bar jumps between the three categories; each word is a row of tappable chips with an inline tray for the verdict. Single dark look, taken from the game itself. */
+:root {
+  --bg: #13111c;
+  --surface: #1e1a2b;
+  --surface-2: #282239;
+  --line: #3a3354;
+  --fg: #f5f2fb;
+  --muted: #a49cbc;
+  --accent: #ff4d6d;
+  --accent-soft: #ff9aae;
+  --easy: #f5b84d;
+  --hard: #84b2ff;
+  --ok: #3ccf91;
+  --font: 'Heebo', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+  --r: 12px;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 16px; line-height: 1.5; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+main {
+  max-width: 780px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 72px;
+  display: grid; gap: 32px;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+
+.intro { display: grid; gap: 12px; }
+.brand { margin: 0; font-weight: 700; color: var(--muted); letter-spacing: .02em; }
+.brand .m1 { color: var(--accent); }
+.brand .m2 { color: var(--accent-soft); }
+.brand .wm { color: var(--fg); }
+h1 { margin: 0; font-size: clamp(1.9rem, 6vw, 2.6rem); font-weight: 800; line-height: 1.15; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 60ch; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 0; padding: 0; list-style: none; }
+.status { margin: 0; font-size: .9rem; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.status[data-state="saved"]::before { background: var(--ok); }
+.status[data-state="saving"]::before { background: var(--easy); }
+.status[data-state="error"]::before, .status[data-state="local"]::before { background: var(--accent); }
+
+.tabs {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  display: flex; gap: 8px; overflow-x: auto;
+  padding-block: 10px; margin-block: -10px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.tab {
+  flex: none; display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 14px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--line);
+  color: var(--fg); text-decoration: none; font-weight: 500;
+}
+.tab .n { font-size: .8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tab[data-approved="true"] { border-color: var(--ok); }
+.tab[data-approved="true"] .n { color: var(--ok); }
+
+.cat { display: grid; gap: 14px; scroll-margin-top: calc(env(safe-area-inset-top, 0px) + 64px); }
+.cat-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.cat-head h2 { margin: 0; font-size: 1.6rem; font-weight: 800; }
+.cat-head .count { color: var(--muted); font-size: .9rem; }
+.notes { background: var(--surface); border-radius: var(--r); padding: 10px 14px; color: var(--muted); font-size: .92rem; }
+.notes summary { cursor: pointer; color: var(--fg); font-weight: 500; }
+.notes ul { margin: 8px 0 2px; padding-inline-start: 20px; display: grid; gap: 4px; }
+
+.rows { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.row {
+  display: grid; grid-template-columns: minmax(0, 10rem) minmax(0, 1fr);
+  gap: 8px 14px; align-items: start;
+  padding-block: 12px; border-bottom: 1px solid var(--line);
+}
+.hints { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.tray, .note { grid-column: 1 / -1; }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 38px; padding: 6px 12px;
+  border-radius: 10px; border: 1px solid var(--line);
+  background: transparent; text-align: start;
+}
+.chip:hover { border-color: var(--muted); }
+.chip.word { background: var(--surface-2); border-color: transparent; font-weight: 700; font-size: 1.05rem; justify-self: start; max-width: 100%; }
+.chip[aria-expanded="true"] { border-color: var(--fg); }
+.chip .tag { font-size: .75rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; }
+.chip[data-mark="easy"] { border-color: var(--easy); background: color-mix(in srgb, var(--easy) 14%, transparent); }
+.chip[data-mark="easy"] .tag { background: var(--easy); color: var(--bg); }
+.chip[data-mark="hard"] { border-color: var(--hard); background: color-mix(in srgb, var(--hard) 14%, transparent); }
+.chip[data-mark="hard"] .tag { background: var(--hard); color: var(--bg); }
+.chip[data-mark="replace"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.chip[data-mark="replace"] .t { text-decoration: line-through; text-decoration-color: var(--accent); }
+.chip[data-mark="replace"] .tag { background: var(--accent); color: var(--fg); }
+.legend .chip { cursor: default; min-height: 32px; font-size: .9rem; }
+.chip.is-new { border-style: dashed; border-color: var(--accent-soft); }
+.chip .new { font-size: .72rem; font-weight: 700; color: var(--accent-soft); }
+.filter {
+  justify-self: start; min-height: 40px; padding: 6px 16px; border-radius: 999px;
+  border: 1px dashed var(--accent-soft); background: transparent; color: var(--accent-soft); font-weight: 700;
+}
+.filter[aria-pressed="true"] { background: var(--accent-soft); color: var(--bg); border-style: solid; }
+
+.tray {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  background: var(--surface); border-radius: var(--r); padding: 10px 12px;
+}
+.tray[hidden] { display: none; }
+.tray .what { flex-basis: 100%; margin: 0 0 2px; color: var(--muted); font-size: .9rem; }
+.tray .what b { color: var(--fg); }
+.act {
+  min-height: 38px; padding: 6px 14px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface-2); font-weight: 500;
+}
+.act[data-set="easy"] { border-color: var(--easy); }
+.act[data-set="hard"] { border-color: var(--hard); }
+.act[data-set="replace"] { border-color: var(--accent); }
+.act[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.act.plain { background: transparent; }
+
+.note { display: flex; gap: 8px; align-items: center; }
+.note label { color: var(--muted); font-size: .9rem; flex: none; }
+.note input {
+  flex: 1; min-width: 0; min-height: 38px; padding: 6px 12px;
+  border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: inherit;
+}
+
+.cat-foot { display: flex; justify-content: flex-start; }
+.approve {
+  min-height: 44px; padding: 8px 18px; border-radius: 999px;
+  border: 1px solid var(--ok); background: transparent; font-weight: 700; color: var(--ok);
+}
+.approve[aria-pressed="true"] { background: var(--ok); color: var(--bg); }
+
+.summary { display: grid; gap: 12px; background: var(--surface); border-radius: var(--r); padding: 18px; }
+.summary h2 { margin: 0; font-size: 1.3rem; }
+.summary p { margin: 0; color: var(--muted); font-size: .92rem; }
+.summary textarea {
+  width: 100%; box-sizing: border-box; min-height: 9rem; resize: vertical;
+  padding: 12px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--fg); font: inherit; font-size: .95rem; line-height: 1.6;
+}
+.summary .row-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.copy { min-height: 44px; padding: 8px 18px; border-radius: 999px; border: 0; background: var(--accent); color: var(--fg); font-weight: 700; }
+.copied { color: var(--ok); font-size: .9rem; }
+
+@media (max-width: 540px) {
+  .row { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+</style>
+
+<main dir="rtl" lang="he">
+  <header class="intro">
+    <p class="brand"><span class="m1">מי</span><span class="m2">מי</span><span class="wm">תחזה</span> · סקירת מילים</p>
+    <h1>{{HEADING}}</h1>
+    <p class="lede">{{COUNT}} מילים חדשות, לכל אחת שלושה רמזים. לוחצים על מילה או על רמז ובוחרים מה לא עובד בו. מה שלא מסומן נחשב מאושר, ובסוף כל קטגוריה אפשר לאשר את כל השאר.</p>
+    <ul class="legend" aria-label="סוגי סימון">
+      <li><span class="chip" data-mark="easy"><span class="t">רמז</span><span class="tag">קל מדי</span></span></li>
+      <li><span class="chip" data-mark="hard"><span class="t">רמז</span><span class="tag">קשה מדי</span></span></li>
+      <li><span class="chip" data-mark="replace"><span class="t">רמז</span><span class="tag">להחליף</span></span></li>
+    </ul>
+    <p class="status" id="status" data-state="connecting" role="status">מתחבר לשמירה האוטומטית…</p>
+    <button class="filter" id="only-new" type="button" aria-pressed="false" hidden>להציג רק את מה שהשתנה</button>
+  </header>
+
+  <nav class="tabs" id="tabs" aria-label="קטגוריות"></nav>
+
+  <div id="sections"></div>
+
+  <section class="summary" aria-labelledby="summary-title">
+    <h2 id="summary-title">הסיכום</h2>
+    <p id="summary-hint">כל הסימונים וההערות, בפורמט שאפשר להדביק בצ'אט.</p>
+    <textarea id="summary-text" readonly aria-label="סיכום הסימונים"></textarea>
+    <div class="row-actions">
+      <button class="copy" id="copy" type="button">העתקת הסיכום</button>
+      <span class="copied" id="copied" role="status"></span>
+    </div>
+  </section>
+</main>
+
+<script>
+const DATA = /*DATA*/null;
+const LABEL = { easy: 'קל מדי', hard: 'קשה מדי', replace: 'להחליף' };
+const LOCAL_KEY = 'mimi-word-review:' + DATA.map((c) => c.key).join(',');
+
+const state = { marks: {}, notes: {}, approved: {} };
+const ENTRY = {};
+const rowEls = {};
+let db = null;
+let mode = 'connecting';
+let open = null; // { id, slot }
+const chains = new Map();
+const noteTimers = new Map();
+
+const idOf = (cat, i) => cat.key + '-' + String(i + 1).padStart(2, '0');
+DATA.forEach((cat) => cat.entries.forEach((e, i) => {
+  ENTRY[idOf(cat, i)] = { cat, word: e[0], hints: e.slice(1) };
+}));
+
+function el(tag, props, ...kids) {
+  const n = document.createElement(tag);
+  Object.entries(props || {}).forEach(([k, v]) => {
+    if (k === 'text') n.textContent = v;
+    else if (k === 'class') n.className = v;
+    else if (k === 'hidden') n.hidden = v;
+    else n.setAttribute(k, v);
+  });
+  kids.flat().forEach((k) => k && n.append(k));
+  return n;
+}
+
+/* ---------- build ---------- */
+function build() {
+  const tabs = document.getElementById('tabs');
+  const sections = document.getElementById('sections');
+  sections.style.display = 'grid';
+  sections.style.gap = '44px';
+  DATA.forEach((cat) => {
+    tabs.append(el('a', { class: 'tab', href: '#' + cat.key, 'data-key': cat.key },
+      el('span', { text: cat.name }), el('span', { class: 'n' })));
+
+    const list = el('ol', { class: 'rows' });
+    cat.entries.forEach((e, i) => {
+      const id = idOf(cat, i);
+      const word = el('button', { class: 'chip word', type: 'button', 'data-id': id, 'data-slot': 'w', 'aria-expanded': 'false' },
+        el('span', { class: 't', text: e[0] }), el('span', { class: 'tag', hidden: true }));
+      // רמזים שהוחלפו מאז הסבב הקודם מסומנים "חדש"
+      const changed = (cat.changed || {})[e[0]] || [];
+      const hints = el('div', { class: 'hints' }, e.slice(1).map((h, j) =>
+        el('button', { class: changed.includes(j) ? 'chip is-new' : 'chip', type: 'button', 'data-id': id, 'data-slot': 'h' + j, 'aria-expanded': 'false' },
+          el('span', { class: 't', text: h }),
+          changed.includes(j) ? el('span', { class: 'new', text: 'חדש' }) : null,
+          el('span', { class: 'tag', hidden: true }))));
+      const tray = el('div', { class: 'tray', hidden: true, 'data-id': id });
+      const input = el('input', { type: 'text', id: 'note-' + id, 'data-id': id, placeholder: 'מה לשנות, או רעיון לרמז אחר' });
+      const note = el('div', { class: 'note', hidden: true },
+        el('label', { for: 'note-' + id, text: 'הערה' }), input);
+      const li = el('li', { class: 'row', 'data-id': id }, word, hints, tray, note);
+      if (changed.length) li.dataset.changed = 'true';
+      rowEls[id] = { li, tray, note, input, chips: [word, ...hints.children] };
+      list.append(li);
+    });
+
+    const notes = cat.notes.length
+      ? el('details', { class: 'notes' }, el('summary', { text: 'הערות שלי על הרמזים' }),
+          el('ul', {}, cat.notes.map((t) => el('li', { text: t }))))
+      : null;
+    const approve = el('button', { class: 'approve', type: 'button', 'data-approve': cat.key, 'aria-pressed': 'false' });
+    sections.append(el('section', { class: 'cat', id: cat.key, 'aria-labelledby': 'h-' + cat.key },
+      el('div', { class: 'cat-head' }, el('h2', { id: 'h-' + cat.key, text: cat.name }),
+        el('span', { class: 'count', text: cat.entries.length + ' מילים' })),
+      notes, list, el('div', { class: 'cat-foot' }, approve)));
+  });
+}
+
+/* ---------- render ---------- */
+function renderRow(id) {
+  const r = rowEls[id];
+  const m = state.marks[id] || {};
+  r.chips.forEach((c) => {
+    const slot = c.dataset.slot;
+    const v = m[slot];
+    const tag = c.querySelector('.tag');
+    if (v) { c.dataset.mark = v; tag.textContent = slot === 'w' ? 'להחליף' : LABEL[v]; tag.hidden = false; }
+    else { delete c.dataset.mark; tag.hidden = true; }
+    c.setAttribute('aria-expanded', String(!!open && open.id === id && open.slot === slot));
+  });
+  const note = state.notes[id] || '';
+  if (document.activeElement !== r.input) r.input.value = note;
+  if (note) r.note.hidden = false;
+  renderTray(id);
+}
+
+function renderTray(id) {
+  const r = rowEls[id];
+  if (!open || open.id !== id) { r.tray.hidden = true; r.tray.replaceChildren(); return; }
+  const e = ENTRY[id];
+  const slot = open.slot;
+  const cur = (state.marks[id] || {})[slot];
+  const what = slot === 'w'
+    ? el('p', { class: 'what' }, 'המילה ', el('b', { text: e.word }))
+    : el('p', { class: 'what' }, 'הרמז ', el('b', { text: e.hints[+slot.slice(1)] }), ' למילה ', el('b', { text: e.word }));
+  const opts = slot === 'w' ? [['replace', 'להחליף את המילה']] : [['easy', 'קל מדי'], ['hard', 'קשה מדי'], ['replace', 'להחליף']];
+  r.tray.replaceChildren(what,
+    ...opts.map(([v, t]) => el('button', { class: 'act', type: 'button', 'data-set': v, 'aria-pressed': String(cur === v) }, t)),
+    cur ? el('button', { class: 'act plain', type: 'button', 'data-set': 'clear' }, 'ביטול הסימון') : null,
+    el('button', { class: 'act plain', type: 'button', 'data-note': '1' }, 'הוספת הערה'),
+    el('button', { class: 'act plain', type: 'button', 'data-close': '1' }, 'סגירה'));
+  r.tray.hidden = false;
+}
+
+function renderNav() {
+  DATA.forEach((cat) => {
+    const n = cat.entries.filter((_, i) => rowHasAnything(idOf(cat, i))).length;
+    const tab = document.querySelector('.tab[data-key="' + cat.key + '"]');
+    const ap = !!state.approved[cat.key];
+    tab.dataset.approved = String(ap);
+    tab.querySelector('.n').textContent = ap ? (n ? n + ' סומנו · השאר מאושר' : 'מאושרת') : (n ? n + ' סומנו' : 'לא נבדקה');
+    const btn = document.querySelector('[data-approve="' + cat.key + '"]');
+    btn.setAttribute('aria-pressed', String(ap));
+    btn.textContent = ap ? '✓ כל השאר ב' + cat.name + ' מאושר' : 'לאשר את כל השאר ב' + cat.name;
+  });
+}
+
+function rowHasAnything(id) {
+  return Object.keys(state.marks[id] || {}).length > 0 || !!(state.notes[id] || '').trim();
+}
+
+function summaryText() {
+  const out = [];
+  DATA.forEach((cat) => {
+    const items = [];
+    cat.entries.forEach((e, i) => {
+      const id = idOf(cat, i);
+      const m = state.marks[id] || {};
+      const parts = [];
+      if (m.w) parts.push('להחליף את המילה');
+      e.slice(1).forEach((h, j) => {
+        const v = m['h' + j];
+        if (v === 'replace') parts.push('להחליף את "' + h + '"');
+        else if (v) parts.push('"' + h + '" ' + LABEL[v]);
+      });
+      const note = (state.notes[id] || '').trim();
+      if (note) parts.push('הערה: ' + note);
+      if (parts.length) items.push('- ' + e[0] + ': ' + parts.join(', '));
+    });
+    const ap = !!state.approved[cat.key];
+    if (!items.length) out.push(cat.name + ': ' + (ap ? 'מאושרת כולה' : 'עוד לא נבדקה'));
+    else out.push(cat.name + (ap ? ' (כל השאר מאושר)' : '') + ':', ...items);
+    out.push('');
+  });
+  return out.join('\n').trim();
+}
+
+function renderAll() {
+  Object.keys(rowEls).forEach(renderRow);
+  renderNav();
+  document.getElementById('summary-text').value = summaryText();
+}
+
+function setStatus(s) {
+  const node = document.getElementById('status');
+  node.dataset.state = s;
+  node.textContent = {
+    connecting: 'מתחבר לשמירה האוטומטית…',
+    saved: 'הסימונים נשמרים אוטומטית, ו-Claude יכול לקרוא אותם ישירות.',
+    saving: 'שומר…',
+    error: 'השמירה נכשלה. אפשר להעתיק את הסיכום בתחתית ולהדביק בצ\'אט.',
+    local: 'השמירה האוטומטית לא זמינה כאן, אז הסימונים נשמרים רק בדפדפן הזה. בסוף מעתיקים את הסיכום לצ\'אט.',
+  }[s];
+}
+
+/* ---------- persistence ---------- */
+function bodyFor(id) {
+  const m = state.marks[id] || {};
+  const note = (state.notes[id] || '').trim();
+  if (!Object.keys(m).length && !note) return null;
+  const e = ENTRY[id];
+  return { category: e.cat.name, word: e.word, hints: e.hints, marks: { ...m }, note };
+}
+
+function saveLocal() {
+  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(state)); } catch (_) {}
+}
+
+function queue(key, fn) {
+  setStatus('saving');
+  const next = (chains.get(key) || Promise.resolve()).then(fn).then(
+    () => { if (chains.get(key) === next) setStatus('saved'); },
+    (err) => { console.error(err); setStatus('error'); });
+  chains.set(key, next);
+}
+
+function persistRow(id) {
+  if (mode !== 'db') { saveLocal(); return; }
+  const body = bodyFor(id);
+  const ref = db.collection('marks').doc(id);
+  queue('m:' + id, () => (body ? ref.set(body) : ref.delete()));
+}
+
+function persistApproved(key) {
+  if (mode !== 'db') { saveLocal(); return; }
+  const cat = DATA.find((c) => c.key === key);
+  const ref = db.collection('categories').doc(key);
+  const approved = !!state.approved[key];
+  queue('c:' + key, () => ref.set({ name: cat.name, approved }));
+}
+
+/* ---------- interaction ---------- */
+document.getElementById('sections').addEventListener('click', (ev) => {
+  const t = ev.target.closest('button');
+  if (!t) return;
+  if (t.dataset.approve) {
+    const k = t.dataset.approve;
+    state.approved[k] = !state.approved[k];
+    renderNav();
+    document.getElementById('summary-text').value = summaryText();
+    persistApproved(k);
+    return;
+  }
+  if (t.classList.contains('chip')) {
+    const { id, slot } = t.dataset;
+    const prev = open && open.id;
+    open = open && open.id === id && open.slot === slot ? null : { id, slot };
+    if (prev && prev !== id) renderRow(prev);
+    renderRow(id);
+    if (open) rowEls[id].tray.querySelector('.act')?.focus({ preventScroll: true });
+    return;
+  }
+  const tray = t.closest('.tray');
+  if (!tray || !open) return;
+  const id = tray.dataset.id;
+  if (t.dataset.close) { open = null; renderRow(id); rowEls[id].chips[0].focus({ preventScroll: true }); return; }
+  if (t.dataset.note) {
+    const r = rowEls[id];
+    r.note.hidden = false;
+    r.input.focus();
+    return;
+  }
+  if (t.dataset.set) {
+    const m = { ...(state.marks[id] || {}) };
+    if (t.dataset.set === 'clear') delete m[open.slot];
+    else m[open.slot] = t.dataset.set;
+    if (Object.keys(m).length) state.marks[id] = m; else delete state.marks[id];
+    open = null;
+    renderRow(id);
+    renderNav();
+    document.getElementById('summary-text').value = summaryText();
+    persistRow(id);
+  }
+});
+
+document.getElementById('sections').addEventListener('input', (ev) => {
+  const id = ev.target.dataset.id;
+  if (!id || ev.target.tagName !== 'INPUT') return;
+  state.notes[id] = ev.target.value;
+  renderNav();
+  document.getElementById('summary-text').value = summaryText();
+  clearTimeout(noteTimers.get(id));
+  noteTimers.set(id, setTimeout(() => persistRow(id), 700));
+});
+
+document.getElementById('sections').addEventListener('focusout', (ev) => {
+  const id = ev.target.dataset && ev.target.dataset.id;
+  if (!id || ev.target.tagName !== 'INPUT') return;
+  if (noteTimers.has(id)) { clearTimeout(noteTimers.get(id)); noteTimers.delete(id); persistRow(id); }
+});
+
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape' && open) { const id = open.id; open = null; renderRow(id); }
+});
+
+document.getElementById('copy').addEventListener('click', () => {
+  const text = summaryText();
+  const done = (msg) => { document.getElementById('copied').textContent = msg; };
+  const fallback = () => {
+    const ta = document.getElementById('summary-text');
+    ta.focus(); ta.select();
+    done('הטקסט מסומן, אפשר להעתיק אותו ידנית.');
+  };
+  try {
+    navigator.clipboard.writeText(text).then(() => done('הועתק. אפשר להדביק בצ\'אט.'), fallback);
+  } catch (_) { fallback(); }
+});
+
+/* ---------- start ---------- */
+build();
+renderAll();
+
+// בסבב תיקונים: כפתור שמציג רק את השורות שבהן רמז הוחלף
+const onlyNew = document.getElementById('only-new');
+if (document.querySelector('.row[data-changed]')) {
+  onlyNew.hidden = false;
+  onlyNew.addEventListener('click', () => {
+    const on = onlyNew.getAttribute('aria-pressed') !== 'true';
+    onlyNew.setAttribute('aria-pressed', String(on));
+    document.querySelectorAll('.row').forEach((r) => { r.hidden = on && !r.dataset.changed; });
+    document.querySelectorAll('.cat').forEach((s) => { s.hidden = on && !s.querySelector('.row[data-changed]'); });
+  });
+}
+
+function startLocal() {
+  mode = 'local';
+  try {
+    const saved = JSON.parse(localStorage.getItem(LOCAL_KEY) || 'null');
+    if (saved) Object.assign(state, saved);
+  } catch (_) {}
+  setStatus('local');
+  renderAll();
+}
+
+(async () => {
+  const api = window.claude && window.claude.use ? await window.claude.use('db').catch(() => null) : null;
+  if (!api) { startLocal(); return; }
+  db = api;
+  mode = 'db';
+  setStatus('saved');
+  db.collection('marks').onSnapshot((snap) => {
+    const marks = {};
+    const notes = {};
+    snap.docs.forEach((d) => {
+      if (!ENTRY[d.id]) return;
+      const b = d.data() || {};
+      if (b.marks && Object.keys(b.marks).length) marks[d.id] = { ...b.marks };
+      if (b.note) notes[d.id] = b.note;
+    });
+    Object.keys(rowEls).forEach((id) => {
+      const typing = document.activeElement === rowEls[id].input || noteTimers.has(id);
+      if (!typing) { if (notes[id]) state.notes[id] = notes[id]; else delete state.notes[id]; }
+    });
+    state.marks = marks;
+    renderAll();
+  }, (err) => { console.error(err); setStatus('error'); });
+  db.collection('categories').onSnapshot((snap) => {
+    const approved = {};
+    snap.docs.forEach((d) => { approved[d.id] = !!(d.data() || {}).approved; });
+    state.approved = approved;
+    renderNav();
+    document.getElementById('summary-text').value = summaryText();
+  }, (err) => { console.error(err); setStatus('error'); });
+})();
+</script>
