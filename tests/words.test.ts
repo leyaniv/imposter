@@ -132,9 +132,9 @@ describe('words.he.json', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('covers 12 categories with at least 300 words and 20 per category', () => {
+  it('covers 15 categories with at least 300 words and 20 per category', () => {
     const categories = listCategories(bank);
-    expect(categories).toHaveLength(12);
+    expect(categories).toHaveLength(15);
     expect(bank.length).toBeGreaterThanOrEqual(300);
     for (const category of categories) {
       expect(bank.filter((e) => e.category === category).length, category).toBeGreaterThanOrEqual(20);
