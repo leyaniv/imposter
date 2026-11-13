@@ -1231,3 +1231,55 @@ a.btn-ghost {
     transition: none !important;
   }
 }
+
+/* ניקוד: נקודה שהלכה לאיבוד */
+.score-gain.score-loss {
+  color: var(--danger);
+}
+
+/* סוף סבב מקוון: מאיפה הגיעה כל נקודה */
+.scoring {
+  align-items: stretch;
+}
+
+.scoring summary {
+  cursor: pointer;
+  text-align: center;
+}
+
+.scoring-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.scoring-title {
+  margin: 8px 0 0;
+  font-weight: 600;
+}
+
+.scoring-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.scoring-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.scoring-list .score-name {
+  flex: 1;
+}
+
+.scoring-list .scoring-me {
+  outline: 1px solid var(--border);
+}

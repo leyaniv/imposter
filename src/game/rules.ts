@@ -1,9 +1,16 @@
-import type { Round, WinReason, Winner } from './types';
+import type { Round, ScoredVote, WinReason, Winner } from './types';
 
-/** נקודות לכל שחקן רגיל כשהשחקנים מנצחים */
+/** נקודות לכל שחקן רגיל כשהשחקנים מנצחים (בטלפון אחד, ובמשחק המקוון רק בניחוש חופשי שגוי) */
 export const CREW_POINTS = 1;
 /** נקודות לכל מתחזה כשהמתחזים מנצחים */
 export const IMPOSTER_POINTS = 3;
+/** במשחק המקוון: מתחזה שהודח בהצבעה, והמתחזים ניצחו בכל זאת */
+export const CAUGHT_IMPOSTER_POINTS = 2;
+/** במשחק המקוון, על כל הצבעה שהדיחה מישהו: למי שצדק +1, למי שטעה -1 */
+export const VOTE_POINTS = 1;
+/** מי שפתח את ההצבעה: +2 אם צדק, -1 אם טעה. המטרה היא לעודד ללחוץ גם כשרק חושדים */
+export const OPENER_RIGHT_POINTS = 2;
+export const OPENER_WRONG_POINTS = 1;
 
 export function isImposter(round: Round, playerId: string): boolean {
   return round.imposterIds.includes(playerId);
@@ -87,6 +94,56 @@ export function roundPoints(round: Round): Record<string, number> {
   const winners = round.players.filter((player) => isImposter(round, player.id) === (round.winner === 'imposters'));
   const points = round.winner === 'imposters' ? IMPOSTER_POINTS : CREW_POINTS;
   return Object.fromEntries(winners.map((player) => [player.id, points]));
+}
+
+/**
+ * במשחק המקוון: הנקודות על הצבעה שהדיחה את targetId.
+ * צדק = הצביע בעד הדחה של מתחזה, או נגד הדחה של שחקן רגיל. מתחזה לא מקבל נקודות על הצבעות,
+ * אחרת הוא היה נענש על הצבעה נגד שחקן רגיל, כלומר על משחק טוב.
+ */
+export function scoreVote(
+  round: Round,
+  targetId: string,
+  startedBy: string,
+  votes: readonly { playerId: string; yes: boolean }[],
+): ScoredVote {
+  const imposter = isImposter(round, targetId);
+  const ballots = votes.map(({ playerId, yes }) => {
+    if (isImposter(round, playerId)) return { playerId, yes, points: 0 };
+    const right = yes === imposter;
+    const opener = playerId === startedBy;
+    const points = right ? (opener ? OPENER_RIGHT_POINTS : VOTE_POINTS) : -(opener ? OPENER_WRONG_POINTS : VOTE_POINTS);
+    return { playerId, yes, points };
+  });
+  return { targetId, imposter, startedBy, ballots };
+}
+
+/**
+ * במשחק המקוון: הנקודות על סוף הסבב, בלי ההצבעות.
+ * מתחזים שניצחו: 3, או 2 למי שהודח. שחקנים: נקודה רק בניחוש חופשי שגוי, כי בשאר הניצחונות הנקודות באות מההצבעות.
+ */
+export function onlineWinPoints(round: Round): Record<string, number> {
+  if (round.winner === 'imposters') {
+    return Object.fromEntries(
+      round.imposterIds.map((id) => [id, round.eliminatedIds.includes(id) ? CAUGHT_IMPOSTER_POINTS : IMPOSTER_POINTS]),
+    );
+  }
+  if (round.winReason === 'freeGuessWrong') {
+    return Object.fromEntries(
+      round.players.filter((player) => !isImposter(round, player.id)).map((player) => [player.id, CREW_POINTS]),
+    );
+  }
+  return {};
+}
+
+/** במשחק המקוון: כל הנקודות של הסבב (הצבעות וסוף הסבב). רק בסבב שיש בו מנצח */
+export function onlineRoundPoints(round: Round, votes: readonly ScoredVote[]): Record<string, number> {
+  if (!round.winner) return {};
+  let total = onlineWinPoints(round);
+  for (const { playerId, points } of votes.flatMap((vote) => vote.ballots)) {
+    if (points !== 0) total = addPoints(total, { [playerId]: points });
+  }
+  return total;
 }
 
 export function addPoints(scores: Record<string, number>, points: Record<string, number>): Record<string, number> {

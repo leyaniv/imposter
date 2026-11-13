@@ -1,7 +1,8 @@
 /**
  * החוקים של חדר במצב "כל אחד בטלפון שלו": פונקציות טהורות, בלי Cloudflare ובלי דפדפן.
  * ה-Durable Object (room.ts) רק מחבר אותן ל-WebSocket ולאחסון, ולכן אפשר לבדוק את הכול עם vitest רגיל.
- * חוקי ההדחה, הניחוש, הניצחון והניקוד הם אותם חוקים של הטלפון האחד (src/game/rules.ts).
+ * חוקי ההדחה, הניחוש והניצחון הם אותם חוקים של הטלפון האחד (src/game/rules.ts).
+ * הניקוד שונה: לפי מי שצדק בהצבעות (scoreVote ו-onlineRoundPoints באותו קובץ).
  */
 import words from '../src/data/words.he.json';
 import { cryptoRng, type Rng } from '../src/game/random';
@@ -12,11 +13,13 @@ import {
   eliminate,
   freeGuess,
   isImposter,
+  onlineRoundPoints,
+  onlineWinPoints,
   resolveLastGuess,
-  roundPoints,
+  scoreVote,
 } from '../src/game/rules';
 import { MAX_PLAYERS, MIN_PLAYERS, createRound } from '../src/game/setup';
-import type { Round, WordEntry } from '../src/game/types';
+import type { Round, ScoredVote, WordEntry } from '../src/game/types';
 import { listCategories } from '../src/game/words';
 import {
   MAX_NAME_LENGTH,
@@ -84,6 +87,11 @@ export interface Room {
   freeGuess?: { startedBy: string };
   /** ניקוד מצטבר: playerId -> נקודות */
   scores: Record<string, number>;
+  /**
+   * 🔒 ההצבעות שהדיחו מישהו בסבב הזה, עם הנקודות של כל מצביע.
+   * נוספות לניקוד רק כשנקבע מנצח, ונשלחות לטלפונים רק בסוף הסבב: אחרת מי שלא קיבל נקודות על הצבעה היה מזוהה כמתחזה
+   */
+  scoredVotes: ScoredVote[];
   /** מתי החיבור האחרון של המארח נסגר. אחרי HOST_AWAY_MS האירוח עובר לשחקן מחובר */
   hostAwaySince?: number;
 }
@@ -120,6 +128,7 @@ export function createRoom(code: string, now: number, settings: RoomSettings = D
     imposterLeft: false,
     voteNumber: 0,
     scores: {},
+    scoredVotes: [],
   };
 }
 
@@ -218,7 +227,7 @@ function afterSeen(room: Room): Room {
   return waiting ? room : { ...room, phase: 'play' };
 }
 
-/** הסבב השתנה. אם נקבע מנצח: סוף הסבב, וניקוד לכל מי שניצח (כמו updateRound בטלפון האחד) */
+/** הסבב השתנה. אם נקבע מנצח: סוף הסבב, והנקודות של ההצבעות ושל הניצחון נוספות לניקוד */
 function withRound(room: Room, round: Round): Room {
   if (round === room.round) return room;
   if (!round.winner || room.round?.winner) return { ...room, round };
@@ -228,7 +237,7 @@ function withRound(room: Room, round: Round): Room {
     phase: 'roundEnd',
     vote: undefined,
     freeGuess: undefined,
-    scores: addPoints(room.scores, roundPoints(round)),
+    scores: addPoints(room.scores, onlineRoundPoints(round, room.scoredVotes)),
   };
 }
 
@@ -341,6 +350,7 @@ function startRound(room: Room, now: number, rng: Rng): ActionResult {
       vote: undefined,
       lastVote: undefined,
       freeGuess: undefined,
+      scoredVotes: [],
       lastActivity: now,
     },
   };
@@ -371,7 +381,11 @@ export function settleVote(room: Room, connected: ReadonlySet<string>, force = f
   const eliminated = voters.length > 0 && yes > voters.length / 2;
   const lastVote: VoteResult = { id: vote.id, targetId: vote.targetId, yes, no: voters.length - yes, votes, eliminated };
   const closed: Room = { ...room, vote: undefined, lastVote };
-  return eliminated ? withRound(closed, eliminate(room.round, vote.targetId)) : closed;
+  if (!eliminated) return closed;
+  // מי שנספר ולא הצביע (סגירה ידנית) נחשב נגד, גם בניקוד
+  const ballots = voters.map((id) => ({ playerId: id, yes: vote.votes[id] === true }));
+  const scored = scoreVote(room.round, vote.targetId, vote.startedBy, ballots);
+  return withRound({ ...closed, scoredVotes: [...room.scoredVotes, scored] }, eliminate(room.round, vote.targetId));
 }
 
 /** אפשר לפתוח הצבעה או ניחוש: שלב הדיבור, בלי הצבעה, ניחוש או חשיפה פתוחים */
@@ -465,6 +479,8 @@ export function act(room: Room, playerId: string, message: ClientMessage, now: n
       const vote = room.vote;
       if (!vote) return { error: 'wrong_phase' };
       if (!active(room, playerId) || playerId === vote.targetId) return { error: 'not_allowed' };
+      // מי שפתח נספר בעד ולא יכול להחליף, אחרת היה בורח מהנקודה שהוא מפסיד כשטעה. אם השתכנע, הוא מבטל את ההצבעה
+      if (playerId === vote.startedBy) return { error: 'not_allowed' };
       const next = { ...room, vote: { ...vote, votes: { ...vote.votes, [playerId]: message.yes } } };
       return touch(settleVote(next, connected));
     }
@@ -521,6 +537,7 @@ export function act(room: Room, playerId: string, message: ClientMessage, now: n
         leftIds: [],
         imposterLeft: false,
         lastVote: undefined,
+        scoredVotes: [],
       });
 
     case 'room:join':
@@ -570,11 +587,12 @@ function roundView(room: Room, playerId: string, connected: ReadonlySet<string>)
       category: round.category,
       imposters: round.imposterIds.map((id) => ({ id, hint: round.hints[id] })),
       imposterLeft: room.imposterLeft,
-      points: roundPoints(round),
+      points: onlineRoundPoints(round, room.scoredVotes),
     };
     if (round.winner) {
       state.reveal.winner = round.winner;
       state.reveal.winReason = round.winReason as WinReason;
+      state.reveal.scoring = { votes: room.scoredVotes, win: onlineWinPoints(round) };
     }
   }
   return state;

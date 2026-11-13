@@ -54,6 +54,16 @@ export type WinReason =
   /** השחקנים סימנו בעצמם מי ניצח בסוף הסבב */
   | 'manual';
 
+/** במשחק המקוון: הצבעה שהדיחה מישהו, ומה כל מצביע קיבל עליה */
+export interface ScoredVote {
+  targetId: string;
+  /** המודח היה מתחזה */
+  imposter: boolean;
+  startedBy: string;
+  /** כל מי שנספר בהצבעה, לפי הסדר. מי שלא הצביע נספר נגד. למתחזה תמיד 0 */
+  ballots: { playerId: string; yes: boolean; points: number }[];
+}
+
 export interface Round {
   /** לפי סדר הישיבה, עם כיוון השעון */
   players: Player[];

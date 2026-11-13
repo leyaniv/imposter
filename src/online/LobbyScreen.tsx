@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Scoreboard from '../components/Scoreboard';
+import { CAUGHT_IMPOSTER_POINTS, IMPOSTER_POINTS } from '../game/rules';
 import StickyActions from '../components/StickyActions';
 import { maxImposters } from '../game/setup';
 import { he } from '../i18n/he';
@@ -75,7 +76,7 @@ export default function LobbyScreen({ state, status, onAskLeave }: Props) {
           <SeatList players={state.players} you={state.you} hostId={state.hostId} canReorder={false} onReorder={() => {}} />
         </section>
 
-        <Scoreboard players={state.players} scores={state.scores} />
+        <Scoreboard players={state.players} scores={state.scores} help={he.scores.helpOnline(IMPOSTER_POINTS, CAUGHT_IMPOSTER_POINTS)} />
 
         <section className="field">
           <h2 className="label">{he.online.lobby.settings}</h2>

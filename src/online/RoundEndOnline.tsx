@@ -2,11 +2,13 @@ import type { ReactNode } from 'react';
 import Scoreboard from '../components/Scoreboard';
 import StickyActions from '../components/StickyActions';
 import WordReport from '../components/WordReport';
+import { CAUGHT_IMPOSTER_POINTS, IMPOSTER_POINTS } from '../game/rules';
 import type { WordProblem } from '../game/types';
 import { he } from '../i18n/he';
 import ConnectionNotice from './ConnectionNotice';
 import type { ConnectionStatus } from './connection';
 import type { RoomState, RoundState } from './protocol';
+import ScoringBreakdown from './ScoringBreakdown';
 
 interface Props {
   state: RoomState;
@@ -75,7 +77,9 @@ export default function RoundEndOnline({
           scores={state.scores}
           gains={reveal.points}
           onReset={isHost ? onResetScores : undefined}
+          help={he.scores.helpOnline(IMPOSTER_POINTS, CAUGHT_IMPOSTER_POINTS)}
         />
+        <ScoringBreakdown round={round} you={state.you} />
 
         <div className="feedback">
           {!reported && <p className="help">{he.feedback.title}</p>}

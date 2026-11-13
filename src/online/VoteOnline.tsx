@@ -36,6 +36,8 @@ export default function VoteOnline({ state, round, vote, status, onCast, onCance
 
         {isTarget ? (
           <p className="big-name pop">{he.online.vote.accused}</p>
+        ) : isStarter ? (
+          <p className="muted">{he.online.vote.starter}</p>
         ) : isVoter ? (
           <div className="segmented vote-choice" role="radiogroup" aria-label={he.online.vote.title(nameOf(vote.targetId))}>
             {([true, false] as const).map((yes) => (

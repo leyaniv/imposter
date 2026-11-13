@@ -15,14 +15,23 @@ interface Props {
   showTitle?: boolean;
   /** בלי onReset אין כפתור איפוס (למשל אצל מי שלא מארח את החדר) */
   onReset?: () => void;
+  /** ההסבר מתחת לטבלה. ברירת מחדל: הניקוד של הטלפון האחד */
+  help?: string;
 }
 
 export function hasScores(players: readonly Player[], scores: Record<string, number>): boolean {
-  return players.some((player) => (scores[player.id] ?? 0) > 0);
+  return players.some((player) => (scores[player.id] ?? 0) !== 0);
 }
 
 /** ניקוד מצטבר, מהגבוה לנמוך, עם מה שכל אחד קיבל עכשיו ואיפוס עם אישור */
-export default function Scoreboard({ players, scores, gains = {}, showTitle = true, onReset }: Props) {
+export default function Scoreboard({
+  players,
+  scores,
+  gains = {},
+  showTitle = true,
+  onReset,
+  help = he.scores.help(CREW_POINTS, IMPOSTER_POINTS),
+}: Props) {
   const [confirmReset, setConfirmReset] = useState(false);
   const rows = players
     .map((player, index) => ({ player, index, score: scores[player.id] ?? 0 }))
@@ -44,12 +53,14 @@ export default function Scoreboard({ players, scores, gains = {}, showTitle = tr
         {rows.map(({ player, index, score }) => (
           <li key={player.id}>
             <span className="score-name">{displayName(player, index)}</span>
-            {gains[player.id] && <span className="score-gain">{he.scores.gain(gains[player.id])}</span>}
-            <span className="score-value">{score}</span>
+            {!!gains[player.id] && (
+              <span className={`score-gain${gains[player.id] < 0 ? ' score-loss' : ''}`}>{he.scores.gain(gains[player.id])}</span>
+            )}
+            <span className="score-value">{he.scores.total(score)}</span>
           </li>
         ))}
       </ol>
-      <p className="help">{he.scores.help(CREW_POINTS, IMPOSTER_POINTS)}</p>
+      <p className="help">{help}</p>
 
       {confirmReset && (
         <ConfirmDialog

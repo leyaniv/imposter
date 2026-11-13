@@ -3,6 +3,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import GameSettingsFields from '../components/GameSettingsFields';
 import type { GameMode } from '../components/ModeToggle';
 import Scoreboard from '../components/Scoreboard';
+import { CAUGHT_IMPOSTER_POINTS, IMPOSTER_POINTS } from '../game/rules';
 import { MIN_PLAYERS } from '../game/setup';
 import { he } from '../i18n/he';
 import LocalSetupFields, { type LocalSetup } from '../screens/LocalSetupFields';
@@ -107,7 +108,7 @@ export default function HostSetup({
         />
       </section>
 
-      <Scoreboard players={state.players} scores={state.scores} onReset={onResetScores} />
+      <Scoreboard players={state.players} scores={state.scores} help={he.scores.helpOnline(IMPOSTER_POINTS, CAUGHT_IMPOSTER_POINTS)} onReset={onResetScores} />
 
       <GameSettingsFields
         settings={state.settings}

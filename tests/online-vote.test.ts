@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CREW_POINTS, IMPOSTER_POINTS } from '../src/game/rules';
+import { CAUGHT_IMPOSTER_POINTS, CREW_POINTS, IMPOSTER_POINTS } from '../src/game/rules';
 import { PROTOCOL_VERSION, type ClientMessage, type ErrorCode, type RoomSettings } from '../src/online/protocol';
 import { act, createRoom, join, settleVote, view, type Room } from '../worker/logic';
 import { seededRng } from './helpers';
@@ -86,6 +86,11 @@ describe('casting votes', () => {
   it('does not let the accused vote', () => {
     const room = send(playing(4), 'p1', { type: 'vote:start', targetId: 'p2' });
     expect(error(room, 'p2', { type: 'vote:cast', yes: false })).toBe('not_allowed');
+  });
+
+  it('does not let the one who opened it change their vote', () => {
+    const room = send(playing(4), 'p1', { type: 'vote:start', targetId: 'p2' });
+    expect(error(room, 'p1', { type: 'vote:cast', yes: false })).toBe('not_allowed');
   });
 
   it('lets a voter change their mind until it closes', () => {
@@ -183,7 +188,7 @@ describe('after an elimination', () => {
     room = voteOutByAll(room, b);
     expect(room.phase).toBe('roundEnd');
     expect(room.round!.winReason).toBe('outnumbered');
-    expect(room.scores).toEqual({ [imposters(room)[0]]: IMPOSTER_POINTS });
+    expect(room.scores[imposters(room)[0]]).toBe(IMPOSTER_POINTS);
   });
 });
 
@@ -197,14 +202,16 @@ describe('last guess', () => {
     room = send(room, crew(room)[0], { type: 'guess:mark', correct: false });
     expect(room.phase).toBe('roundEnd');
     expect(room.round!.winReason).toBe('allCaught');
-    expect(room.scores).toEqual(Object.fromEntries(crew(room).map((id) => [id, CREW_POINTS])));
+    // כולם הצביעו בעד, ומי שפתח (השחקן הראשון שעדיין במשחק) מקבל 2. למתחזה אין נקודות על ניצחון השחקנים
+    const [opener, ...others] = crew(room);
+    expect(room.scores).toEqual({ [opener]: 2, ...Object.fromEntries(others.map((id) => [id, 1])) });
   });
 
   it('lets the imposter win when the guess is right', () => {
     let room = voteOutByAll(playing(4), imposters(playing(4))[0]);
     room = send(room, crew(room)[1], { type: 'guess:mark', correct: true });
     expect(room.round!.winReason).toBe('lastGuess');
-    expect(room.scores).toEqual({ [imposters(room)[0]]: IMPOSTER_POINTS });
+    expect(room.scores[imposters(room)[0]]).toBe(CAUGHT_IMPOSTER_POINTS);
   });
 
   it('🔒 ignores marks from the other imposter, without telling them', () => {
@@ -266,7 +273,8 @@ describe('scores', () => {
     room = send(room, 'p2', { type: 'guess:start' });
     room = send(room, crew(room)[0], { type: 'guess:mark', correct: false });
     const total = Object.values(room.scores).reduce((a, b) => a + b, 0);
-    expect(total).toBe(6 * CREW_POINTS);
+    // סבב 1: שלושה שחקנים הצביעו נכון, ואחד מהם פתח (2+1+1). סבב 2: ניחוש חופשי שגוי, נקודה לכל אחד מהשלושה
+    expect(total).toBe(4 + 3 * CREW_POINTS);
 
     expect(error(room, 'p2', { type: 'scores:reset' })).toBe('not_host');
     expect(send(room, 'p1', { type: 'scores:reset' }).scores).toEqual({});
@@ -345,5 +353,144 @@ describe('🔒 what each phone sees during votes and guesses', () => {
         }
       }
     }
+  });
+});
+
+describe('scoring by votes', () => {
+  /** 5 שחקנים: המתחזה, ו-a עד d שחקנים רגילים לפי סדר הישיבה */
+  function cast() {
+    const room = playing(5);
+    const [a, b, c, d] = crew(room);
+    return { room, imp: imposters(room)[0], a, b, c, d };
+  }
+
+  it('scores the example from the plan: +1 / -1 per vote, +2 / -1 for the one who opened it', () => {
+    const { room: start, imp, a, b, c, d } = cast();
+    // a פותח על b (שחקן רגיל). c והמתחזה בעד, d נגד: 3 מתוך 4, b מודח
+    let room = voteOut(start, a, b, [c, imp]);
+    expect(room.round!.eliminatedIds).toEqual([b]);
+    // עוד אין מנצח: הנקודות לא נוספו
+    expect(room.scores).toEqual({});
+    expect(room.scoredVotes[0].ballots).toEqual(
+      expect.arrayContaining([
+        { playerId: a, yes: true, points: -1 },
+        { playerId: c, yes: true, points: -1 },
+        { playerId: d, yes: false, points: 1 },
+        { playerId: imp, yes: true, points: 0 },
+      ]),
+    );
+
+    room = send(room, d, { type: 'reveal:continue' });
+    // d פותח על המתחזה, c בעד, a נגד: 2 מתוך 3
+    room = voteOut(room, d, imp, [c]);
+    room = send(room, c, { type: 'guess:mark', correct: false });
+    expect(room.round!.winReason).toBe('allCaught');
+    expect(room.scores).toEqual({ [a]: -2, [c]: 0, [d]: 3 });
+  });
+
+  it('gives a caught imposter who guessed right 2, on top of the vote points', () => {
+    const { room: start, imp, a, b, c, d } = cast();
+    let room = voteOut(start, a, imp, [b, c]);
+    room = send(room, b, { type: 'guess:mark', correct: true });
+    expect(room.round!.winReason).toBe('lastGuess');
+    expect(room.scores).toEqual({ [imp]: CAUGHT_IMPOSTER_POINTS, [a]: 2, [b]: 1, [c]: 1, [d]: -1 });
+  });
+
+  it('gives no vote points to the imposter, even when they opened the vote', () => {
+    const { room: start, imp, a, b, c, d } = cast();
+    const room = voteOut(start, imp, a, [b, c]);
+    expect(room.scoredVotes[0]).toMatchObject({ targetId: a, imposter: false, startedBy: imp });
+    expect(room.scoredVotes[0].ballots).toEqual(
+      expect.arrayContaining([
+        { playerId: imp, yes: true, points: 0 },
+        { playerId: b, yes: true, points: -1 },
+        { playerId: d, yes: false, points: 1 },
+      ]),
+    );
+  });
+
+  it('counts whoever did not vote as no when the vote is closed by hand', () => {
+    const { room: start, imp, a, b, c, d } = cast();
+    let room = send(start, a, { type: 'vote:start', targetId: imp });
+    room = send(room, b, { type: 'vote:cast', yes: true });
+    room = send(room, c, { type: 'vote:cast', yes: true });
+    room = send(room, a, { type: 'vote:close' });
+    expect(room.round!.eliminatedIds).toEqual([imp]);
+    expect(room.scoredVotes[0].ballots).toContainEqual({ playerId: d, yes: false, points: -1 });
+  });
+
+  it('gives nothing to a disconnected player who did not vote', () => {
+    const { room: start, imp, a, b, c, d } = cast();
+    const online = new Set([a, b, c, imp]);
+    let room = send(start, a, { type: 'vote:start', targetId: imp }, online);
+    room = send(room, b, { type: 'vote:cast', yes: true }, online);
+    room = send(room, c, { type: 'vote:cast', yes: true }, online);
+    expect(room.round!.eliminatedIds).toEqual([imp]);
+    expect(room.scoredVotes[0].ballots.map((ballot) => ballot.playerId)).not.toContain(d);
+  });
+
+  it('scores nothing for a vote with no majority, or one that was cancelled', () => {
+    const { room: start, imp, a, b } = cast();
+    const failed = voteOut(start, a, imp, [b]);
+    expect(failed.lastVote!.eliminated).toBe(false);
+    expect(failed.scoredVotes).toEqual([]);
+
+    const cancelled = send(send(start, a, { type: 'vote:start', targetId: imp }), a, { type: 'vote:cancel' });
+    expect(cancelled.scoredVotes).toEqual([]);
+  });
+
+  it('gives every regular player 1 when the imposter guesses wrong without being caught, even who is out', () => {
+    const { room: start, imp, a, b, c, d } = cast();
+    let room = voteOut(start, a, b, [c, d]);
+    room = send(room, a, { type: 'reveal:continue' });
+    room = send(room, imp, { type: 'guess:start' });
+    room = send(room, c, { type: 'guess:mark', correct: false });
+    expect(room.round!.winReason).toBe('freeGuessWrong');
+    // a פתח ו-c, d הצביעו בעד הדחה של b, שלא היה המתחזה
+    expect(room.scores).toEqual({ [a]: 0, [b]: 1, [c]: 0, [d]: 0 });
+  });
+
+  it('gives 3 to the imposter who was not caught, and 2 to the one who was', () => {
+    let room = playing(8, { imposterCount: 2 });
+    const [first, second] = imposters(room);
+    room = voteOutByAll(room, first);
+    room = send(room, crew(room)[0], { type: 'guess:mark', correct: false });
+    room = send(room, crew(room)[0], { type: 'reveal:continue' });
+    room = send(room, second, { type: 'guess:start' });
+    room = send(room, crew(room)[0], { type: 'guess:mark', correct: true });
+    expect(room.round!.winReason).toBe('freeGuessRight');
+    expect(room.scores[first]).toBe(CAUGHT_IMPOSTER_POINTS);
+    expect(room.scores[second]).toBe(IMPOSTER_POINTS);
+  });
+
+  it('drops the vote points when the round is cancelled', () => {
+    const { room: start, a, b, c, d } = cast();
+    const voted = voteOut(start, a, b, [c, d]);
+    const ended = send(voted, 'p1', { type: 'round:end' });
+    expect(ended.scores).toEqual({});
+    const reveal = view(ended, a, new Set()).round!.reveal!;
+    expect(reveal.points).toEqual({});
+    expect(reveal.scoring).toBeUndefined();
+
+    const next = send(ended, 'p1', { type: 'round:next' });
+    expect(next.scoredVotes).toEqual([]);
+  });
+
+  it('🔒 sends the vote points to no phone before the round ends, and to everyone after', () => {
+    const { room: start, imp, a, b, c, d } = cast();
+    let room = voteOut(start, a, b, [c, imp]);
+    room = send(room, d, { type: 'reveal:continue' });
+    for (const id of [imp, a, b, c, d]) {
+      const json = JSON.stringify(view(room, id, new Set()));
+      expect(json).not.toContain('ballots');
+      expect(json).not.toContain('points');
+    }
+
+    room = voteOut(room, d, imp, [c]);
+    room = send(room, c, { type: 'guess:mark', correct: false });
+    const reveal = view(room, b, new Set()).round!.reveal!;
+    expect(reveal.points).toEqual({ [a]: -2, [c]: 0, [d]: 3 });
+    expect(reveal.scoring!.votes.map((vote) => vote.targetId)).toEqual([b, imp]);
+    expect(reveal.scoring!.win).toEqual({});
   });
 });

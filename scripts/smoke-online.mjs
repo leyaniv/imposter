@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
 const BASE = process.argv[2] ?? 'http://localhost:5182';
-const VERSION = 5;
+const VERSION = 6;
 const HOST_AWAY_MS = Number(process.env.HOST_AWAY_MS) || 0;
 
 /** טלפון אחד: WebSocket שאוסף את ההודעות */
@@ -179,8 +179,12 @@ async function main() {
   const won = await imposter.p.stateWhere((s) => s.phase === 'roundEnd' && s.round?.number === 2);
   assert.equal(won.round.reveal.winner, 'crew');
   assert.equal(won.round.reveal.winReason, 'allCaught');
-  for (const s of crewSeats) assert.equal(won.scores[s.id], 1, 'every crew member gets a point');
+  // ניקוד לפי ההצבעות: opener פתח על victim בטעות (-1) ואחר כך על המתחזה בצדק (+2). third בעד בשתיהן (-1, +1)
+  assert.equal(won.scores[opener.id], 1, 'opener: -1 then +2');
+  assert.equal(won.scores[third.id], 0, 'third: -1 then +1');
+  assert.equal(won.scores[victim.id] ?? 0, 0);
   assert.equal(won.scores[imposter.id] ?? 0, 0);
+  assert.equal(won.round.reveal.scoring.votes.length, 2);
   dana.send({ type: 'round:lobby' });
   michal.send({ type: 'room:leave' });
   await dana.stateWhere((s) => s.phase === 'lobby' && s.players.length === 3);
