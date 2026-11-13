@@ -32,6 +32,7 @@ export default function VoteOnline({ state, round, vote, status, onCast, onCance
     .filter(({ id }) => id !== vote.targetId && !round.eliminatedIds.includes(id) && !vote.voterIds.includes(id))
     .map(({ id }) => id);
   const awayVoters = vote.voterIds.filter((id) => absent[id] === 'away');
+  const canVote = isVoter && !isTarget && !isStarter;
 
   return (
     <main className="screen">
@@ -45,21 +46,7 @@ export default function VoteOnline({ state, round, vote, status, onCast, onCance
           <p className="big-name pop">{he.online.vote.accused}</p>
         ) : isStarter ? (
           <p className="muted">{he.online.vote.starter}</p>
-        ) : isVoter ? (
-          <div className="segmented vote-choice" role="radiogroup" aria-label={he.online.vote.title(nameOf(vote.targetId))}>
-            {([true, false] as const).map((yes) => (
-              <button
-                key={String(yes)}
-                role="radio"
-                aria-checked={vote.myVote === yes}
-                className={`segment${vote.myVote === yes ? ' segment-on' : ''}`}
-                onClick={() => onCast(yes)}
-              >
-                {yes ? he.online.vote.yes : he.online.vote.no}
-              </button>
-            ))}
-          </div>
-        ) : (
+        ) : canVote ? null : (
           <p className="muted">{he.online.vote.watching}</p>
         )}
 
@@ -100,8 +87,24 @@ export default function VoteOnline({ state, round, vote, status, onCast, onCance
         )}
       </div>
 
-      {(isStarter || canClose) && (
+      {(canVote || isStarter || canClose) && (
         <div className="screen-actions">
+          {/* בעד ונגד למטה, בהישג האגודל */}
+          {canVote && (
+            <div className="segmented vote-choice" role="radiogroup" aria-label={he.online.vote.title(nameOf(vote.targetId))}>
+              {([true, false] as const).map((yes) => (
+                <button
+                  key={String(yes)}
+                  role="radio"
+                  aria-checked={vote.myVote === yes}
+                  className={`segment ${yes ? 'segment-yes' : 'segment-no'}${vote.myVote === yes ? ' segment-on' : ''}`}
+                  onClick={() => onCast(yes)}
+                >
+                  {yes ? he.online.vote.yes : he.online.vote.no}
+                </button>
+              ))}
+            </div>
+          )}
           {canClose && (
             <button className="btn btn-secondary" onClick={() => setConfirmClose(true)}>
               {he.online.vote.close}

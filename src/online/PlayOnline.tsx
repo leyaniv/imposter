@@ -163,19 +163,20 @@ export default function PlayOnline({
             {he.start.freeGuess}
           </button>
         )}
-        <div className="actions-row">
+        <button className="btn btn-ghost" onClick={() => setOverlay({ kind: 'peek' })}>
+          {he.forgot.button}
+        </button>
+        {/* פעולות נדירות בשורה אחת קטנה בתחתית. לסיום הסבב יש חלון אישור */}
+        <div className="link-row">
           {isHost && (
-            <button className="btn btn-ghost" onClick={() => setOverlay({ kind: 'end' })}>
+            <button className="link-btn link-muted" onClick={() => setOverlay({ kind: 'end' })}>
               {he.start.endRound}
             </button>
           )}
-          <button className="btn btn-ghost" onClick={() => setOverlay({ kind: 'peek' })}>
-            {he.forgot.button}
+          <button className="link-btn link-muted" onClick={() => setOverlay({ kind: 'report' })}>
+            {he.feedback.title}
           </button>
         </div>
-        <button className="link-btn link-muted" onClick={() => setOverlay({ kind: 'report' })}>
-          {he.feedback.title}
-        </button>
       </div>
 
       {voteTarget && (

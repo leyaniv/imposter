@@ -152,6 +152,8 @@ export const he = {
 
   winner: {
     crew: 'ניצחון לשחקנים!',
+    /** "תפסו את המתחזה: דקסטר". השם אחרי נקודתיים, כדי שלא צריך לדעת אם זה שחקן או שחקנית */
+    caught: (n: number, names: string) => `${n > 1 ? 'תפסו את שני המתחזים' : 'תפסו את המתחזה'}: ${names}`,
     imposters: (n: number) => (n > 1 ? 'ניצחון למתחזים!' : 'ניצחון למתחזה!'),
     reason: {
       allCaught: (n: number) => (n > 1 ? 'תפסו את שני המתחזים' : 'תפסו את המתחזה'),
@@ -185,7 +187,11 @@ export const he = {
     word: 'המילה הייתה',
     imposter: 'המתחזה',
     imposters: 'המתחזים',
-    hint: (hint: string) => `רמז: ${hint}`,
+    /** שורה בתוך הכרזת המנצח: "המתחזה: דקסטר" */
+    imposterLine: (n: number, names: string) => `${n > 1 ? 'המתחזים' : 'המתחזה'}: ${names}`,
+    /** מתחת למילה. עם שני מתחזים לכל אחד רמז משלו: "הרמזים: עיניים (דקסטר), עדשות (נימי)" */
+    hintWas: (hint: string) => `הרמז היה: ${hint}`,
+    hintsWere: (list: string) => `הרמזים: ${list}`,
     again: 'עוד סבב',
     newGame: 'משחק חדש',
   },
@@ -206,7 +212,7 @@ export const he = {
   },
 
   feedback: {
-    title: 'משהו לא עבד עם המילה?',
+    title: 'דיווח על בעיה במילה',
     wordTooHard: 'מילה קשה מדי',
     hintTooStrong: 'רמז חזק מדי',
     hintTooFar: 'רמז רחוק מדי',

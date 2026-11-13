@@ -1,3 +1,10 @@
+/*
+ * תפקידי הצבעים:
+ * ורוד (accent): צבע המותג והפעולה הראשית (מתחילים, ממשיכים, הבא).
+ * ירוק (success) ואדום (danger): רק לתשובות של כן/לא (נכון/שגוי, בעד/נגד) ולתוצאות (נקודות, ניחוש). אדום גם לאישור פעולה שקשה לבטל.
+ * אפור (surface-2): פעולות משניות.
+ * ירוק לא משמש לקישוט, ולא לפעולה "חיובית" שאינה תשובה לשאלה.
+ */
 :root {
   color-scheme: dark;
   --bg: #13111c;
@@ -13,6 +20,8 @@
   --danger: #e5484d;
   --warn: #f5b84d;
   --success: #3ccf91;
+  /* הירוק בערכה הכהה בהיר מדי לטקסט לבן */
+  --success-text: #0b2a1c;
   --shadow: rgb(0 0 0 / 0.5);
   --backdrop: rgb(0 0 0 / 0.6);
   --radius: 16px;
@@ -33,6 +42,7 @@
   --danger: #d1343a;
   --warn: #a86a00;
   --success: #138a5a;
+  --success-text: #ffffff;
   --shadow: rgb(45 30 70 / 0.16);
   --backdrop: rgb(29 24 40 / 0.45);
 }
@@ -232,6 +242,12 @@ button {
 .btn-danger {
   background: var(--danger);
   color: #fff;
+}
+
+/* "נכון" מול "שגוי" (שגוי הוא btn-danger): שני כפתורים באותו משקל, כדי שהמסך לא ימליץ על תשובה */
+.btn-success {
+  background: var(--success);
+  color: var(--success-text);
 }
 
 .btn-ghost {
@@ -468,6 +484,22 @@ button {
   font-weight: 400;
 }
 
+/* כמה קישורים קטנים בשורה, עם נקודה ביניהם */
+.link-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 20px;
+}
+
+.link-row .link-btn + .link-btn::before {
+  content: '·';
+  margin-inline-end: 20px;
+  margin-inline-start: -10px;
+  color: var(--border);
+}
+
 .link-btn:disabled {
   color: var(--muted);
   opacity: 0.5;
@@ -655,12 +687,6 @@ button {
   font-size: 0.9rem;
 }
 
-.imposter-row {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
 /* ---------- מי מתחיל ---------- */
 
 .player-circle {
@@ -697,8 +723,10 @@ button {
   color: inherit;
 }
 
+/* מילה מעל מילה, כדי שהתווית תשב במרכז העיגול ולא תימתח לרוחבו */
 .turn-advance-label {
   position: relative;
+  width: min-content;
   max-width: 46%;
   font-size: 0.8rem;
   font-weight: 700;
@@ -901,6 +929,19 @@ button {
 .winner-title {
   font-size: 1.8rem;
   font-weight: 800;
+}
+
+/* המתחזים ניצחו: השם הוא הגילוי של הסבב, אז הוא גדול */
+.winner-names {
+  font-size: 2.2rem;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+/* השחקנים ניצחו בלי לתפוס (למשל ניחוש חופשי שגוי): מי היה המתחזה */
+.winner-imposters {
+  font-weight: 700;
 }
 
 .scoreboard {
@@ -1424,9 +1465,23 @@ a.btn-ghost {
   font-size: 1.3rem;
 }
 
-.vote-choice .segment-on {
-  background: var(--accent);
-  color: var(--accent-text);
+/* בעד ירוק, נגד אדום, כמו ברשימת ההצבעות. הבחירה ממלאת את הכפתור בצבע שלו */
+.vote-choice .segment-yes {
+  color: var(--success);
+}
+
+.vote-choice .segment-no {
+  color: var(--danger);
+}
+
+.vote-choice .segment-yes.segment-on {
+  background: var(--success);
+  color: var(--success-text);
+}
+
+.vote-choice .segment-no.segment-on {
+  background: var(--danger);
+  color: #fff;
 }
 
 .vote-list {
@@ -1618,8 +1673,21 @@ a.btn-ghost {
   background: var(--bg);
 }
 
+/* השמות צמודים לתחילת השורה ולא במרכז, כדי שיתיישרו זה מתחת לזה גם כשההצבעות ברוחב שונה */
 .scoring-list .score-name {
   flex: 1;
+  text-align: start;
+}
+
+/* עמודות ברוחב קבוע: "בעד"/"נגד" מתחילים באותו מקום גם כשיש אחריהם "· הצעה", והנקודות (או "—" למתחזה) בעמודה משלהן */
+.scoring-list .vote-mark {
+  min-width: 5.5em;
+  text-align: start;
+}
+
+.scoring-list li > :last-child:not(.score-name) {
+  min-width: 2rem;
+  text-align: center;
 }
 
 .scoring-list .scoring-me {

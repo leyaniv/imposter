@@ -39,10 +39,10 @@ export default function GuessScreen({
         <p className="label">{ask}</p>
       </div>
       <div className="screen-actions">
-        <button className="btn btn-primary" onClick={() => onAnswer(true)}>
+        <button className="btn btn-success" onClick={() => onAnswer(true)}>
           {rightLabel}
         </button>
-        <button className="btn btn-secondary" onClick={() => onAnswer(false)}>
+        <button className="btn btn-danger" onClick={() => onAnswer(false)}>
           {wrongLabel}
         </button>
         {onCancel && (

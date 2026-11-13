@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import RoundReveal from '../components/RoundReveal';
 import Scoreboard from '../components/Scoreboard';
 import StickyActions from '../components/StickyActions';
 import WordReport from '../components/WordReport';
@@ -19,7 +20,6 @@ interface Props {
   onNext: () => void;
   onLobby: () => void;
   onResetScores: () => void;
-  onAskLeave: () => void;
   /** הפס העליון: השתקה, ניהול החדר, הגדרות ויציאה (RoomBar) */
   bar: ReactNode;
 }
@@ -34,7 +34,6 @@ export default function RoundEndOnline({
   onNext,
   onLobby,
   onResetScores,
-  onAskLeave,
   bar,
 }: Props) {
   const reveal = round.reveal!;
@@ -46,31 +45,16 @@ export default function RoundEndOnline({
       {bar}
       <div className="screen-body center">
         <ConnectionNotice status={status} />
-        <h1 className="heading">{he.roundEnd.title}</h1>
-        {reveal.imposterLeft && <p className="notice">{he.online.round.imposterLeft(reveal.imposters.length)}</p>}
-        {reveal.winner && (
-          <div className="winner-banner pop">
-            <p className="winner-title">
-              {reveal.winner === 'crew' ? he.winner.crew : he.winner.imposters(reveal.imposters.length)}
-            </p>
-            {reveal.winReason && <p className="muted">{he.winner.reason[reveal.winReason](reveal.imposters.length)}</p>}
-          </div>
-        )}
-
-        <div className="result-card">
-          <p className="muted">{he.roundEnd.word}</p>
-          <p className="reveal-word">{reveal.word}</p>
-        </div>
-
-        <div className="result-card">
-          <p className="muted">{reveal.imposters.length > 1 ? he.roundEnd.imposters : he.roundEnd.imposter}</p>
-          {reveal.imposters.map(({ id, hint }) => (
-            <div key={id} className="imposter-row">
-              <p className="big-name">{nameOf(id)}</p>
-              <p className="muted">{he.roundEnd.hint(hint)}</p>
-            </div>
-          ))}
-        </div>
+        <RoundReveal
+          winner={reveal.winner}
+          winReason={reveal.winReason}
+          word={reveal.word}
+          imposters={reveal.imposters.map(({ id, hint }) => ({ id, name: nameOf(id), hint }))}
+          pop
+          noWinner={
+            reveal.imposterLeft && <p className="notice">{he.online.round.imposterLeft(reveal.imposters.length)}</p>
+          }
+        />
 
         <Scoreboard
           players={state.players}
@@ -88,21 +72,19 @@ export default function RoundEndOnline({
       </div>
 
       <StickyActions>
+        {/* יציאה מהחדר: ב-X שבפס העליון */}
         {isHost ? (
-          <>
+          <div className="actions-row">
             <button className="btn btn-primary" onClick={onNext}>
               {he.roundEnd.again}
             </button>
             <button className="btn btn-secondary" onClick={onLobby}>
               {he.online.round.toLobby}
             </button>
-          </>
+          </div>
         ) : (
           <p className="help center-text">{he.online.round.waitHost}</p>
         )}
-        <button className="btn btn-ghost" onClick={onAskLeave}>
-          {he.online.lobby.leave}
-        </button>
       </StickyActions>
     </main>
   );

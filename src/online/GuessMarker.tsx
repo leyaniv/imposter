@@ -26,10 +26,10 @@ export default function GuessMarker({ rightLabel, wrongLabel, onMark }: Props) {
 
   return (
     <>
-      <button className="btn btn-primary" onClick={() => setConfirm(true)}>
+      <button className="btn btn-success" onClick={() => setConfirm(true)}>
         {rightLabel}
       </button>
-      <button className="btn btn-secondary" onClick={() => setConfirm(false)}>
+      <button className="btn btn-danger" onClick={() => setConfirm(false)}>
         {wrongLabel}
       </button>
       {confirm !== null && (
@@ -37,6 +37,7 @@ export default function GuessMarker({ rightLabel, wrongLabel, onMark }: Props) {
           message={he.online.guess.markConfirm(confirm)}
           confirmLabel={he.online.guess.markYes}
           cancelLabel={he.common.cancel}
+          tone={confirm ? 'success' : 'danger'}
           onConfirm={() => {
             setMarked(true);
             setConfirm(null);

@@ -174,17 +174,18 @@ export default function StartScreen({
             <button className="btn btn-secondary" onClick={() => setOverlay({ step: 'freeGuess' })}>
               {he.start.freeGuess}
             </button>
-            <div className="actions-row">
-              <button className="btn btn-ghost" onClick={() => setConfirming(true)}>
+            <button className="btn btn-ghost" onClick={() => setOverlay({ step: 'choose' })}>
+              {he.forgot.button}
+            </button>
+            {/* פעולות נדירות בשורה אחת קטנה בתחתית. לסיום הסבב יש אישור */}
+            <div className="link-row">
+              <button className="link-btn link-muted" onClick={() => setConfirming(true)}>
                 {he.start.endRound}
               </button>
-              <button className="btn btn-ghost" onClick={() => setOverlay({ step: 'choose' })}>
-                {he.forgot.button}
+              <button className="link-btn link-muted" onClick={() => setOverlay({ step: 'report' })}>
+                {he.feedback.title}
               </button>
             </div>
-            <button className="link-btn link-muted" onClick={() => setOverlay({ step: 'report' })}>
-              {he.feedback.title}
-            </button>
           </>
         )}
       </div>

@@ -306,7 +306,6 @@ export function RoomView({ code, name, onEnd, mode, onModeChange, local, onStart
         onNext={() => hostAction({ type: 'round:next' })}
         onLobby={() => send({ type: 'round:lobby' })}
         onResetScores={() => send({ type: 'scores:reset' })}
-        onAskLeave={() => setAskLeave(true)}
         bar={bar}
       />
     );
