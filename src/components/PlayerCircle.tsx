@@ -1,5 +1,6 @@
 import type { Player } from '../game/types';
 import { he } from '../i18n/he';
+import type { Absence } from '../online/presence';
 import { displayName } from '../ui/names';
 import { hasScores } from './Scoreboard';
 
@@ -17,6 +18,8 @@ interface Props {
   onAdvance?: () => void;
   /** החץ מהבהב כדי למשוך תשומת לב (התור הגיע לטלפון הזה) */
   nudge?: boolean;
+  /** במשחק עם טלפון לכל שחקן: מי מנותק ומי לא במסך, בשורה קטנה מתחת לשם */
+  absent?: Record<string, Absence>;
 }
 
 /** השחקנים במעגל לפי סדר הישיבה: שחקן 1 למעלה, והשאר עם כיוון השעון */
@@ -29,6 +32,7 @@ export default function PlayerCircle({
   onSelect,
   onAdvance,
   nudge,
+  absent = {},
 }: Props) {
   const radius = 40; // אחוזים מגודל הריבוע
   const showScores = !!scores && hasScores(players, scores);
@@ -65,12 +69,15 @@ export default function PlayerCircle({
         const angle = (2 * Math.PI * i) / players.length;
         const style = { left: `${50 + radius * Math.sin(angle)}%`, top: `${50 - radius * Math.cos(angle)}%` };
         const out = eliminatedIds.includes(player.id);
+        // מי שהודח כבר לא משפיע על המשחק, אז לא מסמנים אותו
+        const absence = out ? undefined : absent[player.id];
         const className = [
           'seat',
           i === highlightIndex && !out ? 'seat-active' : '',
           i === highlightIndex && landed ? 'landed' : '',
           out ? 'seat-out' : '',
           onSelect && !out ? 'seat-button' : '',
+          absence ? `seat-absent seat-${absence}` : '',
         ]
           .filter(Boolean)
           .join(' ');
@@ -78,6 +85,7 @@ export default function PlayerCircle({
           <>
             <span className="seat-name">{displayName(player, i)}</span>
             {showScores && <span className="seat-score">{he.scores.points(scores[player.id] ?? 0)}</span>}
+            {absence && <span className="seat-status">{he.online.presence[absence]}</span>}
           </>
         );
 

@@ -56,6 +56,8 @@ export function useRoom(code: string, name: string) {
             ? { type: 'room:rejoin', token: session.token, version: PROTOCOL_VERSION }
             : { type: 'room:join', name, token: session.token, version: PROTOCOL_VERSION },
         );
+        // חיבור חדש נחשב גלוי. אם התחברנו מחדש כשהדף מוסתר, מעדכנים (השרת מטפל בהודעות לפי הסדר, אחרי ההצטרפות)
+        if (document.hidden) conn.send({ type: 'presence', away: true });
       },
       onMessage: (message) => {
         switch (message.type) {
@@ -84,10 +86,15 @@ export function useRoom(code: string, name: string) {
       onEnd: (reason) => finish({ kind: reason === 'replaced' ? 'replaced' : 'closed' }),
     });
 
+    // כולם רואים מי לא במסך (לשונית אחרת, אפליקציה אחרת), כדי לדעת למי לקרוא
+    const onVisibility = () => conn.send({ type: 'presence', away: document.hidden });
+    document.addEventListener('visibilitychange', onVisibility);
+
     connection.current = conn;
     conn.start();
     return () => {
       finished = true;
+      document.removeEventListener('visibilitychange', onVisibility);
       conn.stop();
     };
   }, [code, name]);

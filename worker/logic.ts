@@ -579,6 +579,10 @@ export function act(room: Room, playerId: string, message: ClientMessage, now: n
         scoredVotes: [],
       });
 
+    // נוכחות לא נשמרת בחדר: room.ts מצמיד אותה לחיבור ולא מגיע לכאן
+    case 'presence':
+      return { room };
+
     case 'room:join':
     case 'room:rejoin':
       return { error: 'bad_message' };
@@ -638,12 +642,23 @@ function roundView(room: Room, playerId: string, connected: ReadonlySet<string>)
   return state;
 }
 
-/** מה שהטלפון של playerId רואה. בלי טוקנים, ובלי סודות של הסבב לפני הסוף */
-export function view(room: Room, playerId: string, connectedIds: ReadonlySet<string>): RoomState {
+/**
+ * מה שהטלפון של playerId רואה. בלי טוקנים, ובלי סודות של הסבב לפני הסוף.
+ * awayIds: מי מחובר אבל הדף שלו מוסתר
+ */
+export function view(
+  room: Room,
+  playerId: string,
+  connectedIds: ReadonlySet<string>,
+  awayIds: ReadonlySet<string> = new Set(),
+): RoomState {
   const state: RoomState = {
     code: room.code,
     hostId: room.hostId,
-    players: room.players.map(({ id, name }) => ({ id, name, connected: connectedIds.has(id) })),
+    players: room.players.map(({ id, name }) => {
+      const connected = connectedIds.has(id);
+      return { id, name, connected, away: connected && awayIds.has(id) };
+    }),
     you: playerId,
     phase: room.phase,
     settings: room.settings,
@@ -739,6 +754,8 @@ export function parseMessage(raw: string): ClientMessage | null {
       return Number.isInteger(msg.turn) && (msg.turn as number) >= 0 ? { type: 'turn:next', turn: msg.turn as number } : null;
     case 'guess:mark':
       return typeof msg.correct === 'boolean' ? { type: 'guess:mark', correct: msg.correct } : null;
+    case 'presence':
+      return typeof msg.away === 'boolean' ? { type: 'presence', away: msg.away } : null;
     default:
       return null;
   }

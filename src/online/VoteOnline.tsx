@@ -3,6 +3,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import { he } from '../i18n/he';
 import ConnectionNotice from './ConnectionNotice';
 import type { ConnectionStatus } from './connection';
+import { absences } from './presence';
 import type { RoomState, RoundState, VoteState } from './protocol';
 
 interface Props {
@@ -25,6 +26,12 @@ export default function VoteOnline({ state, round, vote, status, onCast, onCance
   const isVoter = vote.voterIds.includes(state.you);
   const isStarter = vote.startedBy === state.you;
   const canClose = isStarter || state.hostId === state.you;
+  const absent = absences(state);
+  // מי שעוד במשחק ולא ברשימת המצביעים: מנותק שעוד לא הצביע. השרת לא סופר אותו, ובלי זה הוא פשוט נעלם מהמסך
+  const notCounted = round.players
+    .filter(({ id }) => id !== vote.targetId && !round.eliminatedIds.includes(id) && !vote.voterIds.includes(id))
+    .map(({ id }) => id);
+  const awayVoters = vote.voterIds.filter((id) => absent[id] === 'away');
 
   return (
     <main className="screen">
@@ -57,20 +64,39 @@ export default function VoteOnline({ state, round, vote, status, onCast, onCance
         )}
 
         <p className="label">{he.online.vote.progress(vote.votedCount, vote.voterIds.length)}</p>
-        {vote.votes && (
+        {vote.votes ? (
           <ul className="vote-list">
             {vote.voterIds.map((id) => {
               const cast = vote.votes![id];
+              const away = cast === undefined && absent[id] === 'away';
               return (
                 <li key={id}>
                   <span>{nameOf(id)}</span>
                   <span className={`vote-mark${cast === true ? ' vote-yes' : cast === false ? ' vote-no' : ''}`}>
-                    {cast === true ? he.online.vote.yes : cast === false ? he.online.vote.no : he.online.vote.pending}
+                    {cast === true
+                      ? he.online.vote.yes
+                      : cast === false
+                        ? he.online.vote.no
+                        : away
+                          ? `${he.online.vote.pending} · ${he.online.presence.away}`
+                          : he.online.vote.pending}
                   </span>
                 </li>
               );
             })}
+            {notCounted.map((id) => (
+              <li key={id} className="vote-not-counted">
+                <span>{nameOf(id)}</span>
+                <span className="vote-mark">{he.online.presence.notCounted}</span>
+              </li>
+            ))}
           </ul>
+        ) : (
+          // בהצבעה חשאית אין רשימה, אז רק אומרים מי לא נספר ולמי כדאי לקרוא
+          <>
+            {notCounted.length > 0 && <p className="muted">{he.online.presence.notCountedList(notCounted.map(nameOf))}</p>}
+            {awayVoters.length > 0 && <p className="muted">{he.online.presence.awayList(awayVoters.map(nameOf))}</p>}
+          </>
         )}
       </div>
 

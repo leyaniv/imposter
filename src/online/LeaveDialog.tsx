@@ -66,7 +66,7 @@ export default function LeaveDialog({ state, onLeave, onCancel }: Props) {
               />
               <span className={player.connected ? undefined : 'muted'}>
                 {player.name}
-                {!player.connected && ` (${he.online.lobby.offline})`}
+                {!player.connected && ` (${he.online.presence.offline})`}
               </span>
             </label>
           ))}

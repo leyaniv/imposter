@@ -14,8 +14,9 @@ export type { ScoredVote };
  * 5: המארח יכול לסגור את החדר (כשהוא עובר למשחק מקומי).
  * 6: ניקוד לפי מי שצדק בהצבעות, ומי שפתח הצבעה לא יכול לשנות את הקול שלו.
  * 7: התור הנוכחי, שבעל התור או המארח מקדמים.
+ * 8: מי לא במסך (הדף מוסתר), כדי שכולם יראו למי לקרוא.
  */
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 8;
 
 export const CODE_LENGTH = 6;
 /** כמו באורך השם במסך ההגדרות */
@@ -77,7 +78,9 @@ export type ClientMessage =
   | { type: 'guess:start' }
   | { type: 'guess:cancel' }
   | { type: 'guess:mark'; correct: boolean }
-  | { type: 'scores:reset' };
+  | { type: 'scores:reset' }
+  /** הדף הוסתר (לשונית אחרת, אפליקציה אחרת) או חזר. לא משנה את החדר, רק מה שאחרים רואים */
+  | { type: 'presence'; away: boolean };
 
 export type ErrorCode =
   /** הטלפון עם גרסה ישנה (או חדשה) מדי */
@@ -103,7 +106,10 @@ export type ErrorCode =
 export interface PublicPlayer {
   id: string;
   name: string;
+  /** יש לטלפון חיבור פתוח. מנותק לא נספר בהצבעה, ומארח מנותק מאבד את האירוח אחרי זמן */
   connected: boolean;
+  /** מחובר, אבל הדף מוסתר: לשונית אחרת או אפליקציה אחרת. נספר בהצבעה כרגיל */
+  away: boolean;
 }
 
 /**

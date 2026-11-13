@@ -3,6 +3,7 @@ import { he } from '../i18n/he';
 import RevealScreen, { type ShownRole } from '../screens/RevealScreen';
 import ConnectionNotice from './ConnectionNotice';
 import type { ConnectionStatus } from './connection';
+import { absences, nameWithAbsence } from './presence';
 import type { RoomState, RoundState } from './protocol';
 
 /** התפקיד כפי שמסך החשיפה מציג אותו */
@@ -51,6 +52,7 @@ export default function RevealOnline({ state, round, status, onSeen, onSkip, bar
     );
   }
 
+  const absent = absences(state);
   const waiting = round.players.filter((player) => !round.seenIds.includes(player.id) && !round.leftIds.includes(player.id));
   return (
     <main className="screen">
@@ -61,7 +63,9 @@ export default function RevealOnline({ state, round, status, onSeen, onSkip, bar
         {waiting.length > 0 && (
           <>
             <p className="muted">{he.online.round.waitingFor}</p>
-            <p className="label">{waiting.map((player) => player.name).join(', ')}</p>
+            <p className="label">
+              {waiting.map((player) => nameWithAbsence(player.name, absent[player.id])).join(', ')}
+            </p>
           </>
         )}
       </div>

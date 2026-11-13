@@ -20,10 +20,21 @@ import {
 /** מה שמוצמד לכל WebSocket. נשמר גם כשהחדר "ישן" */
 interface Attachment {
   playerId: string | null;
+  /** מתי החיבור נפתח. עד ה-ping הראשון, זה הסימן האחרון שהוא חי. חסר בחיבורים מלפני שהשדה נוסף */
+  since?: number;
+  /** הדף בטלפון מוסתר (לשונית אחרת, אפליקציה אחרת). חיבור חדש מתחיל כגלוי, והטלפון מעדכן */
+  away?: boolean;
 }
 
 /** קוד סגירה של WebSocket אחרי שהשחקן יצא, הוצא, או שהחדר נמחק */
 const CLOSE_LEFT = 4000;
+/** קוד סגירה של חיבור שהפסיק לשלוח ping. הטלפון מתחבר מחדש אם הוא עדיין שם */
+const CLOSE_STALE = 4001;
+/**
+ * חיבור שלא שלח ping כל כך הרבה זמן נחשב מת: טלפון שיצא מהרשת, או לשונית שהדפדפן הקפיא.
+ * הטלפון שולח ping כל 25 שניות, אבל בלשונית ברקע Chrome מריץ טיימרים רק פעם בדקה, אז צריך מרווח
+ */
+const STALE_MS =2 * 60 * 1000;
 
 /**
  * Durable Object אחד לכל חדר: מחזיק את מצב החדר ואת החיבורים של כל הטלפונים.
@@ -34,10 +45,14 @@ export class Room extends DurableObject<Env> {
   private room: RoomData | undefined;
   /** אפשר לקצר בפיתוח, בשביל בדיקת העשן: wrangler dev --var HOST_AWAY_MS:3000 */
   private readonly hostAwayMs: number;
+  /** אפשר לקצר בפיתוח, בשביל בדיקת העשן: wrangler dev --var STALE_MS:4000 */
+  private readonly staleMs: number;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
-    this.hostAwayMs = Number((env as { HOST_AWAY_MS?: string }).HOST_AWAY_MS) || HOST_AWAY_MS;
+    const vars = env as { HOST_AWAY_MS?: string; STALE_MS?: string };
+    this.hostAwayMs = Number(vars.HOST_AWAY_MS) || HOST_AWAY_MS;
+    this.staleMs = Number(vars.STALE_MS) || STALE_MS;
     // ping/pong בלי להעיר את החדר ובלי חיוב
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
     ctx.blockConcurrencyWhile(async () => {
@@ -57,7 +72,9 @@ export class Room extends DurableObject<Env> {
     if (request.headers.get('Upgrade') !== 'websocket') return new Response('Expected WebSocket', { status: 426 });
     const { 0: client, 1: server } = new WebSocketPair();
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ playerId: null } satisfies Attachment);
+    server.serializeAttachment({ playerId: null, since: Date.now() } satisfies Attachment);
+    // התזכורת אולי רחוקה (ניקוי החדר בעוד שעתיים): מקדימים אותה לבדיקה של החיבור הזה
+    if (this.room) await this.schedule(this.room);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -76,6 +93,7 @@ export class Room extends DurableObject<Env> {
       return this.admit(ws, message);
     }
     if (!playerId) return send(ws, { type: 'error', code: 'not_joined' });
+    if (message.type === 'presence') return this.setAway(ws, message.away);
 
     const result = act(this.room, playerId, message, Date.now(), { connected: this.connectedIds() });
     if ('error' in result) return this.reject(ws, playerId, result.error);
@@ -99,7 +117,7 @@ export class Room extends DurableObject<Env> {
    * הטלפון התנתק (ננעל, ריענון וכו'). השחקן נשאר בחדר, ורק מסומן כמנותק.
    * בהצבעה פתוחה מנותקים לא נספרים, אז אולי עכשיו כל המחוברים כבר הצביעו
    */
-  private async disconnected(ws: WebSocket) {
+  private async disconnected(ws?: WebSocket) {
     if (this.room) {
       const connected = this.connectedIds(ws);
       // בהצבעה מנותקים לא נספרים. ואם זה המארח, מתחילים לספור את הזמן עד שהאירוח עובר
@@ -109,20 +127,67 @@ export class Room extends DurableObject<Env> {
     this.broadcast(ws);
   }
 
-  /** התעוררות מתוזמנת: העברת אירוח ממארח שנעלם, או מחיקת חדר שלא היה בו שינוי שעתיים */
+  /** הטלפון דיווח שהדף הוסתר או חזר. נשמר רק על החיבור, בלי לכתוב לאחסון */
+  private setAway(ws: WebSocket, away: boolean) {
+    const attachment = ws.deserializeAttachment() as Attachment;
+    if (!!attachment.away === away) return;
+    ws.serializeAttachment({ ...attachment, away } satisfies Attachment);
+    this.broadcast();
+  }
+
+  /**
+   * התעוררות מתוזמנת: סגירת חיבורים שמתו בשקט, העברת אירוח ממארח שנעלם, או מחיקת חדר שלא היה בו שינוי שעתיים
+   */
   async alarm() {
     if (!this.room) return;
     const now = Date.now();
-    const handedOver = hostTimeout(this.room, this.connectedIds(), now, this.hostAwayMs);
+    // חיבור שמת בלי לסגור לא מגיע ל-webSocketClose, אז מסמנים אותו כמנותק מכאן
+    if (this.closeStale(now)) await this.disconnected();
+
+    const handedOver = hostTimeout(this.room!, this.connectedIds(), now, this.hostAwayMs);
     if (handedOver !== this.room) {
       await this.save(handedOver);
       this.broadcast();
     }
 
-    if (now >= cleanupAt(this.room)) return this.closeRoom('closed');
+    const room = this.room!;
+    if (now >= cleanupAt(room)) return this.closeRoom('closed');
     // אם הזמן של המארח עבר ואין למי להעביר, מחכים שמישהו יתחבר (admit בודק שוב) ולא מתעוררים בלולאה
-    const next = nextAlarm(this.room, this.hostAwayMs);
-    await this.ctx.storage.setAlarm(next > now ? next : cleanupAt(this.room));
+    const next = nextAlarm(room, this.hostAwayMs);
+    await this.ctx.storage.setAlarm(Math.min(next > now ? next : cleanupAt(room), this.staleAt() ?? Infinity));
+  }
+
+  /** סוגר חיבורים שלא שלחו ping זמן רב. true אם נסגר מישהו */
+  private closeStale(now: number): boolean {
+    let closed = false;
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws.readyState !== WebSocket.OPEN || now < this.lastSeen(ws) + this.staleMs) continue;
+      try {
+        ws.close(CLOSE_STALE, 'stale');
+      } catch {
+        // כבר נסגר
+      }
+      closed = true;
+    }
+    return closed;
+  }
+
+  /** הסימן האחרון שהחיבור חי: ה-ping האחרון (השרת עונה עליו בלי להתעורר, אבל זוכר מתי), או הפתיחה */
+  private lastSeen(ws: WebSocket): number {
+    const pinged = this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() ?? 0;
+    const { since } = ws.deserializeAttachment() as Attachment;
+    return Math.max(pinged, since ?? 0);
+  }
+
+  /** מתי החיבור הפתוח הבא ייחשב מת אם לא ישלח ping. null אם אין חיבורים */
+  private staleAt(): number | null {
+    let earliest: number | null = null;
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws.readyState !== WebSocket.OPEN) continue;
+      const at = this.lastSeen(ws) + this.staleMs;
+      if (earliest === null || at < earliest) earliest = at;
+    }
+    return earliest;
   }
 
   private async admit(ws: WebSocket, message: Extract<ClientMessage, { type: 'room:join' | 'room:rejoin' }>) {
@@ -142,7 +207,7 @@ export class Room extends DurableObject<Env> {
 
     // אותו שחקן מחובר כבר מטלפון אחר (או מלשונית ישנה): החיבור החדש מחליף אותו
     for (const other of this.sockets(playerId)) other.close(CLOSE_LEFT, 'replaced');
-    ws.serializeAttachment({ playerId } satisfies Attachment);
+    ws.serializeAttachment({ ...(ws.deserializeAttachment() as Attachment), playerId } satisfies Attachment);
 
     // המארח חזר, או שעכשיו יש למי להעביר אירוח ממארח שנעלם מזמן
     const connected = this.connectedIds();
@@ -164,13 +229,14 @@ export class Room extends DurableObject<Env> {
   /** הפעולה נדחתה. שולחים שוב את המצב, כדי שהמסך לא יישאר עם שינוי שלא קרה (למשל סדר אחר) */
   private reject(ws: WebSocket, playerId: string, code: ErrorCode) {
     send(ws, { type: 'error', code });
-    send(ws, { type: 'state', state: view(this.room!, playerId, this.connectedIds()) });
+    const away = this.connectedIds(undefined, true);
+    send(ws, { type: 'state', state: view(this.room!, playerId, this.connectedIds(), away) });
   }
 
   private disconnect(playerId: string, reason: LeftReason) {
     for (const ws of this.sockets(playerId)) {
       send(ws, { type: 'left', reason });
-      ws.serializeAttachment({ playerId: null } satisfies Attachment);
+      ws.serializeAttachment({ ...(ws.deserializeAttachment() as Attachment), playerId: null } satisfies Attachment);
       ws.close(CLOSE_LEFT, reason);
     }
   }
@@ -179,19 +245,21 @@ export class Room extends DurableObject<Env> {
   private broadcast(closing?: WebSocket) {
     if (!this.room) return;
     const connected = this.connectedIds(closing);
+    const away = this.connectedIds(closing, true);
     for (const ws of this.ctx.getWebSockets()) {
       if (ws === closing) continue;
       const { playerId } = ws.deserializeAttachment() as Attachment;
-      if (playerId) send(ws, { type: 'state', state: view(this.room, playerId, connected) });
+      if (playerId) send(ws, { type: 'state', state: view(this.room, playerId, connected, away) });
     }
   }
 
-  private connectedIds(closing?: WebSocket): Set<string> {
+  /** מי מחובר. onlyAway: רק מי שהדף שלו מוסתר */
+  private connectedIds(closing?: WebSocket, onlyAway = false): Set<string> {
     const ids = new Set<string>();
     for (const ws of this.ctx.getWebSockets()) {
       if (ws === closing || ws.readyState !== WebSocket.OPEN) continue;
-      const { playerId } = ws.deserializeAttachment() as Attachment;
-      if (playerId) ids.add(playerId);
+      const { playerId, away } = ws.deserializeAttachment() as Attachment;
+      if (playerId && (!onlyAway || away)) ids.add(playerId);
     }
     return ids;
   }
@@ -202,13 +270,18 @@ export class Room extends DurableObject<Env> {
 
   /**
    * כל המצב נשמר כמפתח אחד (שורה אחת ב-SQLite).
-   * התזכורת נקבעת רק אם אין אחת, או אם צריך להתעורר מוקדם יותר (מארח שנעלם), כדי לא לכתוב פעמיים בכל שינוי.
+   * התזכורת נקבעת רק אם אין אחת, או אם צריך להתעורר מוקדם יותר (מארח שנעלם, חיבור שאולי מת), כדי לא לכתוב פעמיים בכל שינוי.
    * alarm() דוחה אותה לפי הצורך.
    */
   private async save(room: RoomData) {
     this.room = room;
     await this.ctx.storage.put('room', room);
-    const wanted = nextAlarm(room, this.hostAwayMs);
+    await this.schedule(room);
+  }
+
+  /** מקדים את התזכורת אם צריך: ניקוי, מארח שנעלם, או החיבור הבא שאולי מת */
+  private async schedule(room: RoomData) {
+    const wanted = Math.min(nextAlarm(room, this.hostAwayMs), this.staleAt() ?? Infinity);
     const current = await this.ctx.storage.getAlarm();
     if (current === null || wanted < current) await this.ctx.storage.setAlarm(wanted);
   }

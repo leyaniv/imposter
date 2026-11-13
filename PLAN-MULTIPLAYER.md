@@ -345,7 +345,8 @@ wrangler.jsonc  # יתווספו main, durable_objects ו-migrations
 **ה-Durable Object (`Room`):**
 - **מצב החדר:** אובייקט אחד, שנשמר כמפתח אחד (`ctx.storage.put('room', ...)`) אחרי כל שינוי. כלומר שורה אחת בכל כתיבה (ראו סעיף 6). בהפעלה הוא נטען לזיכרון בתוך `blockConcurrencyWhile`.
 - **זיהוי חיבורים:** לכל WebSocket מוצמד `{ playerId }` עם `serializeAttachment`, כך שאחרי "שינה" יודעים מי שלח מה. מי שמחובר נקבע לפי `ctx.getWebSockets()`.
-- **Ping:** `setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'))`. הלקוח שולח `ping` כל 30 שניות. אם לא חזר `pong`, הלקוח מתחבר מחדש.
+- **Ping:** `setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'))`. הלקוח שולח `ping` כל 25 שניות. אם לא חזר `pong`, הלקוח מתחבר מחדש.
+- **חיבור שמת בשקט:** טלפון שיצא מהרשת לא שולח סגירה, ולכן `webSocketClose` לא נקרא. ה-`alarm()` בודק מתי כל חיבור שלח `ping` לאחרונה (`getWebSocketAutoResponseTimestamp`, או מתי נפתח), וסוגר עם קוד 4001 חיבור ששתק 2 דקות. המרווח גדול כי Chrome מריץ טיימרים בלשונית ברקע רק פעם בדקה. התזכורת מוקדמת לחיבור הבא שעלול למות, כך שבחדר פעיל החדר מתעורר בערך פעם בדקה וחצי.
 - **אחרי כל שינוי:** `view` נשלח לכל חיבור, כל אחד בגרסה שלו.
 - **ניקוי:** בכל הודעה מוגדר `setAlarm(now + 2h)`. ה-`alarm()` סוגר את החיבורים ומוחק את האחסון (`deleteAll`).
 

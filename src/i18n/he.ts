@@ -239,7 +239,6 @@ export const he = {
       players: (n: number) => `שחקנים (${n})`,
       host: 'מארח',
       you: 'אני',
-      offline: 'מנותק',
       hostHelp: 'לפי סדר הישיבה, עם כיוון השעון. אפשר לגרור כדי לסדר.',
       guestHelp: 'לפי סדר הישיבה, עם כיוון השעון. המארח מסדר את הרשימה.',
       minPlayers: (n: number) => `צריך לפחות ${n} שחקנים כדי להתחיל.`,
@@ -260,6 +259,18 @@ export const he = {
       leaveConfirm: 'לצאת מהחדר?',
       leaveYes: 'יציאה',
       stay: 'נשארים',
+    },
+    presence: {
+      offline: 'מנותק',
+      away: 'לא במסך',
+      withStatus: (name: string, status: string) => `${name} (${status})`,
+      notCounted: 'מנותק, לא נספר',
+      notCountedList: (names: string[]) =>
+        names.length === 1
+          ? `${names[0]} מנותק ולא נספר בהצבעה.`
+          : `${names.join(', ')} מנותקים ולא נספרים בהצבעה.`,
+      awayList: (names: string[]) => `לא במסך: ${names.join(', ')}`,
+      hostAdvance: 'אפשר לקדם את התור בלחיצה על החץ.',
     },
     turn: {
       of: (name: string) => `התור של ${name}`,

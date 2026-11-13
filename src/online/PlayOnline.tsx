@@ -9,6 +9,7 @@ import RevealScreen from '../screens/RevealScreen';
 import { vibrate } from '../ui/vibrate';
 import ConnectionNotice from './ConnectionNotice';
 import type { ConnectionStatus } from './connection';
+import { absenceLabel, absences } from './presence';
 import type { RoomState, RoundState } from './protocol';
 import { shownRole } from './RevealOnline';
 
@@ -77,6 +78,8 @@ export default function PlayOnline({
   const turnIndex = round.players.findIndex((player) => player.id === turn.playerId);
   const myTurn = turn.playerId === state.you;
   const canAdvance = done && (isHost || myTurn);
+  const absent = absences(state);
+  const turnAbsence = absent[turn.playerId];
 
   // רטט כשהתור מגיע לטלפון הזה (לא בתור הראשון: שם כבר יש רטט של סוף ההגרלה)
   const lastTurn = useRef(turn.number);
@@ -124,6 +127,7 @@ export default function PlayOnline({
             <span key={turn.number} className="turn-name pop">
               {myTurn ? he.online.turn.yours : he.online.turn.of(round.players[turnIndex]?.name ?? '')}
             </span>
+            {turnAbsence && <span className="badge badge-muted">{absenceLabel(turnAbsence)}</span>}
           </p>
         ) : (
           <p className="turn-line">
@@ -139,8 +143,16 @@ export default function PlayOnline({
           onSelect={done && !out ? (index) => round.players[index].id !== state.you && setOverlay({ kind: 'vote', index }) : undefined}
           onAdvance={canAdvance ? () => onTurnNext(turn.number) : undefined}
           nudge={myTurn}
+          absent={absent}
         />
-        <p className={`help${done ? '' : ' invisible'}`}>{out ? he.online.round.out : he.online.round.votingHint}</p>
+        <p className={`help${done ? '' : ' invisible'}`}>
+          {/* בעל התור מנותק: רק המארח יכול להזיז את התור, אז אומרים לו איך */}
+          {done && isHost && turnAbsence === 'offline'
+            ? he.online.presence.hostAdvance
+            : out
+              ? he.online.round.out
+              : he.online.round.votingHint}
+        </p>
         {round.category && <p className="category-tag">{he.category(round.category)}</p>}
         {round.imposterCount > 1 && <p className="notice">{he.start.twoImposters}</p>}
       </div>

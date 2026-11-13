@@ -45,7 +45,10 @@ export default function SeatList({ players: serverOrder, you, hostId, canReorder
             <span className={`lobby-name${player.connected ? '' : ' offline'}`}>{player.name}</span>
             {player.id === you && <span className="badge">{he.online.lobby.you}</span>}
             {player.id === hostId && <span className="badge badge-accent">{he.online.lobby.host}</span>}
-            {!player.connected && <span className="badge badge-muted">{he.online.lobby.offline}</span>}
+            {!player.connected && <span className="badge badge-muted">{he.online.presence.offline}</span>}
+            {player.connected && player.away && player.id !== you && (
+              <span className="badge badge-muted">{he.online.presence.away}</span>
+            )}
             {extra && <span className="badge badge-muted">{extra}</span>}
             {onMore && player.id !== you && (
               <button className="icon-btn" aria-label={he.online.host.more(player.name)} onClick={() => onMore(player)}>

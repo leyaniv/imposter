@@ -1,16 +1,22 @@
 // בדיקת עשן לשרת של מצב "כל אחד בטלפון שלו": שלושה "טלפונים" פותחים חדר, מצטרפים, משחקים סבב, מתנתקים וחוזרים.
 // מריצים מול wrangler dev:  npm run dev:worker  ואז  node scripts/smoke-online.mjs [http://localhost:5182]
-// העברת האירוח ממארח שנעלם נבדקת רק כש-wrangler dev רץ עם זמן קצר, והבדיקה מקבלת אותו:
-//   wrangler dev --port 5182 --var HOST_AWAY_MS:3000   ואז   HOST_AWAY_MS=3000 node scripts/smoke-online.mjs
+// העברת האירוח ממארח שנעלם, וסגירה של חיבור שהפסיק לשלוח ping, נבדקות רק כש-wrangler dev רץ עם זמנים קצרים,
+// והבדיקה מקבלת אותם:
+//   wrangler dev --port 5182 --var HOST_AWAY_MS:3000 --var STALE_MS:4000
+//   HOST_AWAY_MS=3000 STALE_MS=4000 node scripts/smoke-online.mjs
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
 const BASE = process.argv[2] ?? 'http://localhost:5182';
-const VERSION = 7;
+const VERSION = 8;
 const HOST_AWAY_MS = Number(process.env.HOST_AWAY_MS) || 0;
+const STALE_MS = Number(process.env.STALE_MS) || 0;
 
-/** טלפון אחד: WebSocket שאוסף את ההודעות */
-async function phone(code) {
+/**
+ * טלפון אחד: WebSocket שאוסף את ההודעות.
+ * כשהשרת סוגר חיבורים שקטים אחרי זמן קצר, הטלפון שולח ping כמו טלפון אמיתי, אלא אם silent
+ */
+async function phone(code, { silent = false } = {}) {
   const ws = new WebSocket(`${BASE.replace(/^http/, 'ws')}/api/rooms/${code}/ws`);
   const messages = [];
   const waiters = [];
@@ -24,6 +30,10 @@ async function phone(code) {
     ws.addEventListener('open', resolve, { once: true });
     ws.addEventListener('error', reject, { once: true });
   });
+  if (STALE_MS && !silent) {
+    const pinger = setInterval(() => ws.readyState === WebSocket.OPEN && ws.send('ping'), STALE_MS / 4);
+    closed.then(() => clearInterval(pinger));
+  }
 
   /** מחכה להודעה שמתאימה, כולל כאלה שכבר הגיעו */
   async function next(match, timeout = 3000) {
@@ -106,6 +116,13 @@ async function main() {
   assert.equal(back.players.find((p) => p.id === back.you).name, 'יוסי');
   await dana.stateWhere((s) => s.players.every((p) => p.connected));
   console.log('rejoin ok');
+
+  // יוסי עובר ללשונית אחרת: כולם רואים שהוא לא במסך, ואז שחזר
+  yossi2.send({ type: 'presence', away: true });
+  await dana.stateWhere((s) => s.players.find((p) => p.name === 'יוסי')?.away === true);
+  yossi2.send({ type: 'presence', away: false });
+  await dana.stateWhere((s) => s.players.every((p) => p.connected && !p.away));
+  console.log('presence ok');
 
   // סבב: כל טלפון מקבל רק את התפקיד שלו. מתחזה אחד, ולכל השאר אותה מילה
   yossi2.send({ type: 'game:start' });
@@ -222,6 +239,23 @@ async function main() {
   const after = await yossi2.stateWhere((s) => s.players.length === 1);
   assert.equal(after.hostId, after.you);
   console.log('host leaves ok');
+
+  if (STALE_MS) {
+    // טלפון שהחיבור שלו מת בשקט (לא שולח ping ולא סוגר): השרת סוגר אותו ומסמן אותו כמנותק
+    const quiet = await phone(code, { silent: true });
+    quiet.send({ type: 'room:join', name: 'שקט', token: randomUUID(), version: VERSION });
+    const { you: quietId } = await quiet.stateWhere((s) => s.players.length === 2);
+    await yossi2.stateWhere((s) => s.players.find((p) => p.id === quietId)?.connected === true);
+    await yossi2.stateWhere((s) => s.players.find((p) => p.id === quietId)?.connected === false, STALE_MS * 2 + 5000);
+    assert.equal((await quiet.closed).code, 4001);
+    // מי ששולח ping נשאר מחובר
+    assert.equal(yossi2.ws.readyState, WebSocket.OPEN);
+    yossi2.send({ type: 'lobby:kick', playerId: quietId });
+    await yossi2.stateWhere((s) => s.players.length === 1);
+    console.log('stale connection ok');
+  } else {
+    console.log('(stale connection skipped: run wrangler dev with --var STALE_MS:4000 and set STALE_MS=4000)');
+  }
 
   if (HOST_AWAY_MS) {
     // המארח (יוסי) נעלם בלי לצאת: אחרי הזמן הקצוב האירוח עובר לשחקן המחובר

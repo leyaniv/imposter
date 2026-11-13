@@ -173,8 +173,8 @@ describe('view', () => {
       code: '482731',
       hostId: 'p1',
       players: [
-        { id: 'p1', name: 'דנה', connected: true },
-        { id: 'p2', name: 'יוסי', connected: false },
+        { id: 'p1', name: 'דנה', connected: true, away: false },
+        { id: 'p2', name: 'יוסי', connected: false, away: false },
       ],
       you: 'p2',
       phase: 'lobby',
@@ -183,6 +183,15 @@ describe('view', () => {
     });
     expect(JSON.stringify(state)).not.toContain('t-');
     expect(JSON.stringify(state)).not.toContain('token');
+  });
+
+  it('marks connected players whose page is hidden as away, but not disconnected ones', () => {
+    const state = view(roomWith('דנה', 'יוסי', 'רוני'), 'p1', new Set(['p1', 'p2']), new Set(['p2', 'p3']));
+    expect(state.players.map(({ connected, away }) => ({ connected, away }))).toEqual([
+      { connected: true, away: false },
+      { connected: true, away: true },
+      { connected: false, away: false },
+    ]);
   });
 });
 
@@ -198,6 +207,12 @@ describe('parseMessage', () => {
       type: 'lobby:reorder',
       playerIds: ['p2', 'p1'],
     });
+  });
+
+  it('accepts presence only with a boolean', () => {
+    expect(parseMessage('{"type":"presence","away":true}')).toEqual({ type: 'presence', away: true });
+    expect(parseMessage('{"type":"presence","away":"yes"}')).toBeNull();
+    expect(parseMessage('{"type":"presence"}')).toBeNull();
   });
 
   it('drops unknown fields', () => {

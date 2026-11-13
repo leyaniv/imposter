@@ -726,10 +726,13 @@ button {
   }
 }
 
-/* "התור של נימי" בשורה אחת */
+/* "התור של נימי" בשורה אחת, ואם הוא מנותק או לא במסך, תג לידו */
 .turn-line {
   display: flex;
   justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
   min-height: 2.4rem;
   margin: 0;
 }
@@ -829,6 +832,31 @@ button {
 
 .compact .seat-score {
   font-size: 0.65rem;
+}
+
+/* מנותק או לא במסך: שורה קטנה מתחת לשם, כמו הניקוד */
+.seat-absent {
+  border-radius: 14px;
+  line-height: 1.25;
+}
+
+.seat-status {
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+
+.seat-active .seat-status {
+  color: rgb(255 255 255 / 0.85);
+}
+
+/* מנותק: חיוור עם מסגרת מקווקוות, כי הוא באמת לא משתתף עכשיו (למשל לא נספר בהצבעה) */
+.seat-offline:not(.seat-active) {
+  border-style: dashed;
+}
+
+.seat-offline:not(.seat-active) .seat-name {
+  color: var(--muted);
 }
 
 .seat-out {
@@ -1421,6 +1449,13 @@ a.btn-ghost {
 
 .vote-mark {
   color: var(--muted);
+}
+
+/* מנותק שלא הצביע: לא נספר, אז השורה חיוורת ומקווקוות */
+.vote-list .vote-not-counted {
+  color: var(--muted);
+  background: transparent;
+  border: 1px dashed var(--border);
 }
 
 .vote-yes {
