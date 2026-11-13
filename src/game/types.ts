@@ -40,7 +40,7 @@ export interface WordEntry {
 export type Winner = 'crew' | 'imposters';
 
 /** משוב של השחקנים על המילה של הסבב */
-export type WordProblem = 'unknown_word' | 'hint_too_strong';
+export type WordProblem = 'word_too_hard' | 'hint_too_strong' | 'hint_too_far';
 
 export type WinReason =
   /** כל המתחזים הודחו ואף אחד מהם לא ניחש את המילה */

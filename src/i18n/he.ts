@@ -188,8 +188,9 @@ export const he = {
 
   feedback: {
     title: 'משהו לא עבד עם המילה?',
-    unknownWord: 'מילה לא מוכרת',
+    wordTooHard: 'מילה קשה מדי',
     hintTooStrong: 'רמז חזק מדי',
+    hintTooFar: 'רמז רחוק מדי',
     duringRound: 'הדיווח לא חושף את המילה, והסבב ממשיך כרגיל.',
     thanks: 'תודה! זה יעזור לשפר את המילים.',
   },

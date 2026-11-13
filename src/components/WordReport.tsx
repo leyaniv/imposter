@@ -7,7 +7,7 @@ interface Props {
   onReport: (problem: WordProblem) => void;
 }
 
-/** שני כפתורים קטנים שמדווחים על מילה או רמז בעייתיים, כדי לשפר את המאגר */
+/** כפתורים קטנים שמדווחים על מילה או רמז בעייתיים, כדי לשפר את המאגר */
 export default function WordReport({ reported, onReport }: Props) {
   if (reported) {
     return (
@@ -19,11 +19,14 @@ export default function WordReport({ reported, onReport }: Props) {
 
   return (
     <div className="chips">
-      <button className="chip" onClick={() => onReport('unknown_word')}>
-        {he.feedback.unknownWord}
+      <button className="chip" onClick={() => onReport('word_too_hard')}>
+        {he.feedback.wordTooHard}
       </button>
       <button className="chip" onClick={() => onReport('hint_too_strong')}>
         {he.feedback.hintTooStrong}
+      </button>
+      <button className="chip" onClick={() => onReport('hint_too_far')}>
+        {he.feedback.hintTooFar}
       </button>
     </div>
   );

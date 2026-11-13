@@ -111,14 +111,14 @@ describe('word_feedback', () => {
 
   it('reports a word problem during the round or at its end, once', () => {
     const playing = round('start');
-    const event = actionEvent(playing, { type: 'reportWord', problem: 'unknown_word' });
+    const event = actionEvent(playing, { type: 'reportWord', problem: 'word_too_hard' });
     expect(event?.name).toBe('word_feedback');
-    expect(event?.data).toMatchObject({ kind: 'unknown_word', during_round: true, word: playing.round!.word });
+    expect(event?.data).toMatchObject({ kind: 'word_too_hard', during_round: true, word: playing.round!.word });
 
     const ended = round('roundEnd');
     expect(actionEvent(ended, { type: 'reportWord', problem: 'hint_too_strong' })?.data?.during_round).toBe(false);
 
-    const reported = reducer(playing, { type: 'reportWord', problem: 'unknown_word' });
-    expect(actionEvent(reported, { type: 'reportWord', problem: 'unknown_word' })).toBeNull();
+    const reported = reducer(playing, { type: 'reportWord', problem: 'word_too_hard' });
+    expect(actionEvent(reported, { type: 'reportWord', problem: 'word_too_hard' })).toBeNull();
   });
 });

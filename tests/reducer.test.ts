@@ -87,8 +87,8 @@ describe('reducer', () => {
   it('remembers a word report once per round', () => {
     let state = reducer(initialState, { type: 'openSetup' });
     state = reducer(state, startRoundAction(state, testBank, seededRng(1)));
-    expect(reducer(initialState, { type: 'reportWord', problem: 'unknown_word' })).toBe(initialState);
-    state = reducer(state, { type: 'reportWord', problem: 'unknown_word' });
+    expect(reducer(initialState, { type: 'reportWord', problem: 'word_too_hard' })).toBe(initialState);
+    state = reducer(state, { type: 'reportWord', problem: 'word_too_hard' });
     expect(state.round?.wordReported).toBe(true);
     expect(reducer(state, { type: 'reportWord', problem: 'hint_too_strong' })).toBe(state);
   });
