@@ -3,7 +3,7 @@ import { rehydrate, serialize } from '../game/persistence';
 import { reducer } from '../game/reducer';
 import type { AppState } from '../game/types';
 
-const STORAGE_KEY = 'imposter:state';
+export const STORAGE_KEY = 'imposter:state';
 
 function load(): AppState {
   try {
