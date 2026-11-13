@@ -57,7 +57,7 @@ export default function HomeScreen({ showScores, onNewGame, onJoin, onScores, on
         <button className="btn btn-primary" onClick={onNewGame}>
           {he.home.newGame}
         </button>
-        <button className="btn btn-secondary" onClick={onJoin}>
+        <button className="btn btn-tinted" onClick={onJoin}>
           {he.home.join}
         </button>
         {showScores && (

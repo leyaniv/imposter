@@ -29,7 +29,7 @@ export default function CreateRoomFields({ local, name: savedName, secretVote, o
   return (
     <>
       <form className="field create-room" onSubmit={submit}>
-        <label className="field">
+        <label className="field-inline">
           <span className="label">{he.newGame.yourName}</span>
           <input
             className="input"

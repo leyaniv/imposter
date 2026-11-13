@@ -3,6 +3,7 @@ import { MIN_PLAYERS_FOR_TWO_IMPOSTERS, maxImposters } from '../game/setup';
 import type { Settings } from '../game/types';
 import { he } from '../i18n/he';
 import CategoryPicker from './CategoryPicker';
+import HelpRow from './HelpRow';
 
 export type GameSettings = Omit<Settings, 'players'>;
 
@@ -48,24 +49,26 @@ export default function GameSettingsFields({ settings, playerCount, allCategorie
   return (
     <>
       <section className="field">
-        <h2 className="label">{he.setup.categories}</h2>
-        <div className="segmented" role="radiogroup" aria-label={he.setup.categories}>
-          <button
-            role="radio"
-            aria-checked={allSelected}
-            className={`segment${allSelected ? ' segment-on' : ''}`}
-            onClick={() => onChange({ categories: [] })}
-          >
-            {he.setup.categoriesAll}
-          </button>
-          <button
-            role="radio"
-            aria-checked={!allSelected}
-            className={`segment${allSelected ? '' : ' segment-on'}`}
-            onClick={() => setPicking(true)}
-          >
-            {he.setup.categoriesCustom}
-          </button>
+        <div className="field-inline">
+          <h2 className="label">{he.setup.categories}</h2>
+          <div className="segmented" role="radiogroup" aria-label={he.setup.categories}>
+            <button
+              role="radio"
+              aria-checked={allSelected}
+              className={`segment${allSelected ? ' segment-on' : ''}`}
+              onClick={() => onChange({ categories: [] })}
+            >
+              {he.setup.categoriesAll}
+            </button>
+            <button
+              role="radio"
+              aria-checked={!allSelected}
+              className={`segment${allSelected ? '' : ' segment-on'}`}
+              onClick={() => setPicking(true)}
+            >
+              {he.setup.categoriesCustom}
+            </button>
+          </div>
         </div>
         {!allSelected && (
           <div className="label-row">
@@ -98,8 +101,11 @@ export default function GameSettingsFields({ settings, playerCount, allCategorie
         />
       )}
 
-      <section className="field">
-        <h2 className="label">{he.setup.imposterCount}</h2>
+      {/* בלי כותרת: "מתחזה אחד / שני מתחזים" מסביר את עצמו. הכותרת נשארת לקורא מסך */}
+      <HelpRow
+        label={he.settings.helpLabel(he.setup.imposterCountName)}
+        help={twoAllowed ? he.setup.twoImpostersHelp : he.setup.twoImpostersFrom(MIN_PLAYERS_FOR_TWO_IMPOSTERS)}
+      >
         <div className="segmented" role="radiogroup" aria-label={he.setup.imposterCount}>
           {([1, 2] as const).map((count) => (
             <button
@@ -114,21 +120,20 @@ export default function GameSettingsFields({ settings, playerCount, allCategorie
             </button>
           ))}
         </div>
-        <p className="help">
-          {twoAllowed ? he.setup.twoImpostersHelp : he.setup.twoImpostersFrom(MIN_PLAYERS_FOR_TWO_IMPOSTERS)}
-        </p>
-      </section>
+      </HelpRow>
 
-      <label className="toggle">
-        <input
-          type="checkbox"
-          checked={settings.imposterNeverStarts}
-          onChange={(e) => onChange({ imposterNeverStarts: e.target.checked })}
-        />
-        <span>{he.setup.imposterNeverStarts}</span>
-      </label>
+      <HelpRow label={he.settings.helpLabel(he.setup.imposterNeverStarts)} help={he.setup.imposterNeverStartsHelp}>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={settings.imposterNeverStarts}
+            onChange={(e) => onChange({ imposterNeverStarts: e.target.checked })}
+          />
+          <span>{he.setup.imposterNeverStarts}</span>
+        </label>
+      </HelpRow>
 
-      <div className="field">
+      <HelpRow label={he.settings.helpLabel(he.setup.showCategory)} help={he.setup.showCategoryHelp}>
         <label className="toggle">
           <input
             type="checkbox"
@@ -137,8 +142,7 @@ export default function GameSettingsFields({ settings, playerCount, allCategorie
           />
           <span>{he.setup.showCategory}</span>
         </label>
-        <p className="help">{he.setup.showCategoryHelp}</p>
-      </div>
+      </HelpRow>
     </>
   );
 }

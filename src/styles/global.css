@@ -1,6 +1,6 @@
 /*
  * תפקידי הצבעים:
- * ורוד (accent): צבע המותג והפעולה הראשית (מתחילים, ממשיכים, הבא).
+ * ורוד (accent): צבע המותג והפעולה הראשית (מתחילים, ממשיכים, הבא). ורוד חלש (btn-tinted): פעולה שמובילה לאותו מקום.
  * ירוק (success) ואדום (danger): רק לתשובות של כן/לא (נכון/שגוי, בעד/נגד) ולתוצאות (נקודות, ניחוש). אדום גם לאישור פעולה שקשה לבטל.
  * אפור (surface-2): פעולות משניות.
  * ירוק לא משמש לקישוט, ולא לפעולה "חיובית" שאינה תשובה לשאלה.
@@ -239,6 +239,13 @@ button {
   background: var(--surface-2);
 }
 
+/* ורוד חלש: פעולה שמובילה לאותו מקום כמו הראשית ("הצטרפות לחדר" ליד "משחק חדש"), אבל בלי להתחרות בה */
+.btn-tinted {
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  border: 2px solid var(--accent);
+  color: var(--text);
+}
+
 .btn-danger {
   background: var(--danger);
   color: #fff;
@@ -284,6 +291,17 @@ button {
 .actions-row .btn {
   padding-inline: 8px;
   font-size: 1rem;
+}
+
+/* "איך משחקים?" ו"שתפו את המשחק": חצי-חצי, אבל כל אחד מתרחב עד שהטקסט נכנס בשורה אחת (טקסט גדול בטלפון) */
+.home .actions-row {
+  grid-template-columns: repeat(2, minmax(max-content, 1fr));
+  column-gap: 4px;
+}
+
+/* כפתורים שקופים, אז הריווח בצדדים לא נראה. בלעדיו שניהם נכנסים גם בטלפון של 320 פיקסלים */
+.home .actions-row .btn {
+  padding-inline: 0;
 }
 
 /* כפתור אחד בשורה (למשל אצל מי שלא מארח): על כל הרוחב, במרכז */
@@ -467,6 +485,21 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+/* כותרת קצרה ומה שהיא מגדירה באותה שורה, למשל "השם שלך" ושדה השם */
+.field-inline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.field-inline > .label {
+  flex: none;
+}
+
+.field-inline > .segmented {
+  flex: 1;
 }
 
 .link-btn {
@@ -1530,15 +1563,16 @@ a.btn-ghost {
   justify-content: center;
 }
 
-/* "משחק חדש": בורר מקומי/מקוון וסימן שאלה שפותח הסבר */
-.mode-row {
+/* "משחק חדש": בורר או מתג, וסימן שאלה בצד שפותח הסבר מתחת (HelpRow) */
+.help-row {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.mode-toggle {
+.help-row > :first-child {
   flex: 1;
+  min-width: 0;
 }
 
 .mode-toggle .segment {
@@ -1560,7 +1594,7 @@ a.btn-ghost {
   font-size: 1.1rem;
 }
 
-.mode-help {
+.help-card {
   display: flex;
   flex-direction: column;
   gap: 6px;

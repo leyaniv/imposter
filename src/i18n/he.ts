@@ -81,10 +81,13 @@ export const he = {
     resetUsedWordsLabel: (n: number) => `איפוס היסטוריית המילים (${n} מילים שכבר יצאו)`,
     usedWordsReset: 'ההיסטוריה אופסה. כל המילים יכולות לצאת שוב.',
     imposterCount: 'כמה מתחזים?',
+    imposterCountName: 'מספר המתחזים',
     imposters: (n: number) => (n === 1 ? 'מתחזה אחד' : 'שני מתחזים'),
     twoImpostersHelp: 'עם שני מתחזים, הם לא יודעים זה על זה.',
     twoImpostersFrom: (n: number) => `שני מתחזים אפשר מ-${n} שחקנים.`,
     imposterNeverStarts: 'המתחזה לא מתחיל',
+    imposterNeverStartsHelp:
+      'מי שפותח את הסבב תמיד יודע את המילה, כך שהמתחזה לא צריך לתת את הרמז הראשון בלי שום מידע. מצד שני, כולם יודעים שהראשון לא המתחזה.',
     showCategory: 'כולם יודעים את הקטגוריה',
     showCategoryHelp: 'כל השחקנים, כולל המתחזה, רואים מאיזו קטגוריה המילה. עוזר כשמילה יכולה להתפרש בכמה דרכים, ומקל על המתחזה.',
     back: 'חזרה',
