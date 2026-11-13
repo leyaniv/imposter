@@ -59,12 +59,12 @@ export function clearSession(code: string) {
 const MODE_KEY = 'imposter:mode';
 const SECRET_VOTE_KEY = 'imposter:secretVote';
 
-/** המצב האחרון שנבחר במסך "משחק חדש" בטלפון הזה */
+/** המצב האחרון שנבחר במסך "משחק חדש" בטלפון הזה. בלי בחירה קודמת: טלפון לכל שחקן */
 export function loadMode(): 'local' | 'online' {
   try {
-    return localStorage.getItem(MODE_KEY) === 'online' ? 'online' : 'local';
+    return localStorage.getItem(MODE_KEY) === 'local' ? 'local' : 'online';
   } catch {
-    return 'local';
+    return 'online';
   }
 }
 
@@ -72,7 +72,7 @@ export function saveMode(mode: 'local' | 'online') {
   try {
     localStorage.setItem(MODE_KEY, mode);
   } catch {
-    // לא קריטי: בפעם הבאה יתחיל מ"מקומי"
+    // לא קריטי: בפעם הבאה יתחיל מ"טלפון לכל שחקן"
   }
 }
 

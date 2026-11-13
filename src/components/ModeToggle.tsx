@@ -16,7 +16,7 @@ export default function ModeToggle({ mode, onChange }: Props) {
     <div className="field">
       <div className="mode-row">
         <div className="segmented mode-toggle" role="radiogroup" aria-label={he.newGame.modeLabel}>
-          {(['local', 'online'] as const).map((option) => (
+          {(['online', 'local'] as const).map((option) => (
             <button
               key={option}
               role="radio"
@@ -39,8 +39,8 @@ export default function ModeToggle({ mode, onChange }: Props) {
       </div>
       {help && (
         <div className="notice mode-help" role="note">
-          <p>{he.newGame.helpLocal}</p>
           <p>{he.newGame.helpOnline}</p>
+          <p>{he.newGame.helpLocal}</p>
         </div>
       )}
     </div>
