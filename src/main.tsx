@@ -8,14 +8,19 @@ import '@fontsource/heebo/latin-600.css';
 import '@fontsource/heebo/latin-800.css';
 import { initAnalytics } from './analytics/posthog';
 import App from './App';
+import SettingsProvider from './components/SettingsProvider';
 import { registerServiceWorker } from './pwa/registerServiceWorker';
 import './styles/global.css';
+import { initPreferences } from './ui/preferences';
 
 registerServiceWorker();
 initAnalytics();
+initPreferences();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <SettingsProvider>
+      <App />
+    </SettingsProvider>
   </StrictMode>,
 );

@@ -8,7 +8,7 @@ interface Props {
   onAskLeave: () => void;
 }
 
-/** הפס העליון במסכי הסבב: השתקה, ניהול החדר (רק למארח) ויציאה */
+/** הפס העליון במסכי הסבב: השתקה, ניהול החדר (רק למארח), הגדרות ויציאה */
 export default function RoomBar({ isHost, onManage, onAskLeave }: Props) {
   return (
     <TopBar onExit={onAskLeave}>

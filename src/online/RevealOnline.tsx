@@ -21,7 +21,7 @@ interface Props {
   status: ConnectionStatus;
   onSeen: () => void;
   onSkip: () => void;
-  /** הפס העליון: השתקה, ניהול החדר ויציאה (RoomBar). רק במסך ההמתנה, לא בחשיפה עצמה */
+  /** הפס העליון: השתקה, ניהול החדר, הגדרות ויציאה (RoomBar). רק במסך ההמתנה, לא בחשיפה עצמה */
   bar: ReactNode;
 }
 

@@ -1,27 +1,11 @@
 /**
  * צלילים קצרים במצב "כל אחד בטלפון שלו": כשנפתחת הצבעה ובחשיפה של מי שהודח.
- * נוצרים בקוד (Web Audio), בלי קבצי קול. כל טלפון יכול להשתיק לעצמו, וההגדרה נשמרת בו.
+ * נוצרים בקוד (Web Audio), בלי קבצי קול. כל טלפון יכול להשתיק לעצמו (בהגדרות או בכפתור שבחדר).
  */
 
-const MUTE_KEY = 'imposter:muted';
+import { getPreferences } from './preferences';
+
 let context: AudioContext | undefined;
-
-export function isMuted(): boolean {
-  try {
-    return localStorage.getItem(MUTE_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-export function setMuted(muted: boolean) {
-  try {
-    if (muted) localStorage.setItem(MUTE_KEY, '1');
-    else localStorage.removeItem(MUTE_KEY);
-  } catch {
-    // לא נשמר, אבל עובד עד הריענון
-  }
-}
 
 function audio(): AudioContext | null {
   try {
@@ -56,7 +40,7 @@ function tone(ctx: AudioContext, frequency: number, start: number, duration: num
 }
 
 function play(notes: (ctx: AudioContext) => void) {
-  if (isMuted()) return;
+  if (!getPreferences().sound) return;
   const ctx = audio();
   if (!ctx) return;
   try {

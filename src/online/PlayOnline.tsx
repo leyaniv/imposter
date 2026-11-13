@@ -21,7 +21,7 @@ interface Props {
   onVote: (targetId: string) => void;
   onFreeGuess: () => void;
   onEndRound: () => void;
-  /** הפס העליון: השתקה, ניהול החדר ויציאה (RoomBar) */
+  /** הפס העליון: השתקה, ניהול החדר, הגדרות ויציאה (RoomBar) */
   bar: ReactNode;
 }
 

@@ -13,7 +13,7 @@ interface Props {
   onCast: (yes: boolean) => void;
   onCancel: () => void;
   onClose: () => void;
-  /** הפס העליון: השתקה, ניהול החדר ויציאה (RoomBar) */
+  /** הפס העליון: השתקה, ניהול החדר, הגדרות ויציאה (RoomBar) */
   bar: ReactNode;
 }
 

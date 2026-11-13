@@ -11,7 +11,7 @@ interface Props {
   status: ConnectionStatus;
   onMark: (correct: boolean) => void;
   onContinue: () => void;
-  /** הפס העליון: השתקה, ניהול החדר ויציאה (RoomBar) */
+  /** הפס העליון: השתקה, ניהול החדר, הגדרות ויציאה (RoomBar) */
   bar: ReactNode;
 }
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { trackShare } from '../analytics/events';
+import SettingsButton from '../components/SettingsButton';
 import { he } from '../i18n/he';
 import { shareGame } from '../ui/share';
 
@@ -38,6 +39,7 @@ export default function HomeScreen({ showScores, onNewGame, onJoin, onScores, on
           </svg>
           {he.home.about}
         </button>
+        <SettingsButton from="home" />
       </div>
       <div className="screen-body center">
         <div className="logo" aria-hidden="true">

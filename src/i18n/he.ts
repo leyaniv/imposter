@@ -372,6 +372,23 @@ export const he = {
     back: 'חזרה',
   },
 
+  settings: {
+    open: 'הגדרות',
+    title: 'הגדרות',
+    thisPhone: 'נשמרות בטלפון הזה בלבד.',
+    theme: 'ערכת צבעים',
+    themes: { dark: 'כהה', light: 'בהיר', system: 'אוטומטי' },
+    textSize: 'גודל טקסט',
+    textSizes: { normal: 'רגיל', large: 'גדול' },
+    sound: 'צלילים',
+    soundHelp: 'צלילים יש רק במשחק עם טלפון לכל שחקן: כשנפתחת הצבעה וכשמישהו מודח.',
+    vibration: 'רטט',
+    reduceMotion: 'פחות אנימציות',
+    reduceMotionHelp: 'בלי הגרלה מסתובבת ובלי מעברים בין מסכים.',
+    helpLabel: (name: string) => `הסבר על ${name}`,
+    done: 'סיום',
+  },
+
   rules: {
     title: 'איך משחקים?',
     back: 'הבנתי',

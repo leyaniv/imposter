@@ -20,7 +20,7 @@ interface Props {
   onLobby: () => void;
   onResetScores: () => void;
   onAskLeave: () => void;
-  /** הפס העליון: השתקה, ניהול החדר ויציאה (RoomBar) */
+  /** הפס העליון: השתקה, ניהול החדר, הגדרות ויציאה (RoomBar) */
   bar: ReactNode;
 }
 

@@ -7,12 +7,39 @@
   --text: #f5f2fb;
   --muted: #a49cbc;
   --accent: #ff4d6d;
+  /* ה-"מי" השני בשם המשחק */
+  --accent-2: #ff9aae;
   --accent-text: #ffffff;
   --danger: #e5484d;
   --warn: #f5b84d;
   --success: #3ccf91;
+  --shadow: rgb(0 0 0 / 0.5);
+  --backdrop: rgb(0 0 0 / 0.6);
   --radius: 16px;
   --font: 'Heebo', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+}
+
+/* ערכה בהירה, מחלון ההגדרות (src/ui/preferences.ts). צבע הדגשה כהה יותר, כדי שטקסט ורוד יהיה קריא על רקע לבן */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f7f4fb;
+  --surface: #ffffff;
+  --surface-2: #ebe5f4;
+  --border: #d3c9e4;
+  --text: #1d1828;
+  --muted: #675f7c;
+  --accent: #d42a50;
+  --accent-2: #e8577a;
+  --danger: #d1343a;
+  --warn: #a86a00;
+  --success: #138a5a;
+  --shadow: rgb(45 30 70 / 0.16);
+  --backdrop: rgb(29 24 40 / 0.45);
+}
+
+/* טקסט גדול, מחלון ההגדרות. כל גדלי הטקסט ב-rem, אז מספיק להגדיל את הבסיס */
+:root[data-large-text] {
+  font-size: 112.5%;
 }
 
 *,
@@ -145,7 +172,7 @@ button {
 
 /* ורוד בהיר, כדי להבדיל בין שתי ה-"מי" */
 .title-accent-2 {
-  color: #ff9aae;
+  color: var(--accent-2);
 }
 
 .home {
@@ -311,7 +338,7 @@ button {
   position: relative;
   z-index: 2;
   background: var(--bg);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.55);
+  box-shadow: 0 8px 24px var(--shadow);
 }
 
 .drag-handle {
@@ -677,6 +704,11 @@ button {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
 }
 
+/* מי שמתחיל: טקסט לבן על הדגשה, גם כשאפשר ללחוץ עליו (אחרת color של seat-button גובר, ובערכה הבהירה הטקסט כהה) */
+.seat-button.seat-active {
+  color: var(--accent-text);
+}
+
 .seat-button:active {
   transform: translate(-50%, -50%) scale(0.94);
 }
@@ -826,7 +858,7 @@ button {
 /* ---------- אודות ---------- */
 
 .home .top-bar {
-  justify-content: flex-start;
+  justify-content: space-between;
 }
 
 .about-btn {
@@ -924,7 +956,7 @@ a.btn-ghost {
 /* יש עוד תוכן שנגלל מתחת לפס: קו הפרדה וצל, כדי שיהיה ברור מה קבוע ומה נגלל */
 .sticky-actions.raised {
   border-top-color: var(--border);
-  box-shadow: 0 -12px 24px rgb(0 0 0 / 0.5);
+  box-shadow: 0 -12px 24px var(--shadow);
 }
 
 /* ---------- חלון אישור ---------- */
@@ -937,7 +969,7 @@ a.btn-ghost {
   align-items: flex-end;
   justify-content: center;
   padding: 16px;
-  background: rgb(0 0 0 / 0.6);
+  background: var(--backdrop);
   animation: fade-in 150ms ease-out;
 }
 
@@ -959,6 +991,175 @@ a.btn-ghost {
   font-size: 1.1rem;
   font-weight: 600;
   margin-bottom: 8px;
+}
+
+/* ---------- הגדרות הטלפון ---------- */
+
+/* נגלל כשהטקסט גדול והטלפון קטן. relative: בועות ההסבר ממוקמות ביחס לחלון */
+.settings-sheet {
+  position: relative;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+
+.settings-head {
+  margin-bottom: 8px;
+}
+
+/* כל הגדרה בשורה: השם בצד אחד והבורר בצד השני. החלון בצבע surface, אז השורות בצבע הרקע */
+.setting-row,
+.settings-sheet .toggle {
+  background: var(--bg);
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+  padding: 6px;
+  padding-inline-start: 14px;
+  border-radius: var(--radius);
+}
+
+.setting-label {
+  font-size: 1.05rem;
+}
+
+/* הבוררים באותו רוחב, כדי שיתיישרו זה מתחת לזה */
+.setting-row .segmented,
+.select {
+  width: 160px;
+}
+
+.setting-row .segmented {
+  flex: none;
+  padding: 3px;
+  background: var(--surface);
+}
+
+.setting-row .segment {
+  min-height: 40px;
+}
+
+/* רשימה נפתחת עם חץ משלנו, כדי שתיראה אותו דבר בכהה ובבהיר */
+.select-wrap {
+  position: relative;
+  flex: none;
+}
+
+.select {
+  min-height: 44px;
+  padding-block: 0;
+  padding-inline: 14px 36px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  appearance: none;
+  cursor: pointer;
+}
+
+.select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.select-arrow {
+  position: absolute;
+  inset-inline-end: 12px;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  translate: 0 -50%;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+/* מתג עם סימן שאלה: הסימן מחוץ ל-label, אז ה-label עצמו הוא אזור הלחיצה של התיבה */
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  cursor: pointer;
+}
+
+.help-tip-btn {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* אזור לחיצה של 44 פיקסלים, גם כשהעיגול קטן */
+.help-tip-btn::before {
+  content: '';
+  position: absolute;
+  inset: -10px;
+}
+
+.help-tip-btn[aria-expanded='true'] {
+  border-color: var(--text);
+  color: var(--text);
+}
+
+/* חץ קטן מהסימן אל הבועה */
+.help-tip-btn[aria-expanded='true']::after {
+  content: '';
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 50%;
+  translate: -50% 0;
+  border: 7px solid transparent;
+  border-top: 0;
+  border-bottom-color: var(--text);
+  z-index: 3;
+}
+
+.help-tip-btn:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+/* הבועה: ברוחב החלון, מתחת לשורה של הסימן. צבעים הפוכים, כדי שתבלוט מעל מה שמתחתיה */
+.help-tip-bubble {
+  position: absolute;
+  inset-inline: 16px;
+  z-index: 2;
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: 0 8px 24px var(--shadow);
+  font-size: 0.95rem;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+/* צלילים ורטט בשורה אחת. בלי רטט (אייפון) הצלילים על כל הרוחב */
+.toggle-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.toggle-row > :only-child {
+  grid-column: 1 / -1;
 }
 
 /* ---------- אנימציות ---------- */
@@ -1230,6 +1431,14 @@ a.btn-ghost {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* "פחות אנימציות" בחלון ההגדרות: כמו הגדרת הטלפון */
+:root[data-reduce-motion] *,
+:root[data-reduce-motion] *::before,
+:root[data-reduce-motion] *::after {
+  animation: none !important;
+  transition: none !important;
 }
 
 /* ניקוד: נקודה שהלכה לאיבוד */

@@ -13,6 +13,21 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="מימיתחזה" />
+    <script>
+      // ערכת הצבעים וגודל הטקסט לפני שהמשחק נטען, כדי שלא יהבהב מסך כהה. אותו היגיון כמו ב-src/ui/preferences.ts
+      try {
+        var prefs = JSON.parse(localStorage.getItem('imposter:preferences')) || {};
+        var light = prefs.theme === 'light' || (prefs.theme === 'system' && matchMedia('(prefers-color-scheme: light)').matches);
+        document.documentElement.dataset.theme = light ? 'light' : 'dark';
+        if (prefs.textSize === 'large') document.documentElement.setAttribute('data-large-text', '');
+        if (prefs.reduceMotion) document.documentElement.setAttribute('data-reduce-motion', '');
+        if (light) {
+          document.querySelector('meta[name="theme-color"]').content = '#f7f4fb';
+          // באייפון שהמשחק הותקן בו: שורת מצב עם טקסט כהה, אחרת השעון לבן על רקע בהיר
+          document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]').content = 'default';
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

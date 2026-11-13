@@ -1,17 +1,18 @@
-import { useState } from 'react';
+import { usePreferences } from '../hooks/usePreferences';
 import { he } from '../i18n/he';
-import { isMuted, setMuted } from '../ui/sound';
+import { setPreference } from '../ui/preferences';
 
-/** השתקה של הצלילים בטלפון הזה בלבד */
+/** השתקה של הצלילים בטלפון הזה בלבד. אותה הגדרה כמו "צלילים" בחלון ההגדרות */
 export default function MuteButton() {
-  const [muted, setMutedState] = useState(isMuted);
-  const toggle = () => {
-    setMuted(!muted);
-    setMutedState(!muted);
-  };
+  const muted = !usePreferences().sound;
 
   return (
-    <button className="icon-btn" aria-label={muted ? he.online.sound.unmute : he.online.sound.mute} aria-pressed={muted} onClick={toggle}>
+    <button
+      className="icon-btn"
+      aria-label={muted ? he.online.sound.unmute : he.online.sound.mute}
+      aria-pressed={muted}
+      onClick={() => setPreference('sound', muted)}
+    >
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" />
         {muted ? (
