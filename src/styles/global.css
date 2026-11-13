@@ -572,6 +572,13 @@ button {
   font-size: 0.95rem;
 }
 
+/* הרמז של המתחזה: בולט בתוך השורה התחתונה, אבל קטן בהרבה מהשורה הגדולה */
+.reveal-hint {
+  color: var(--text);
+  font-weight: 700;
+  font-size: 1.25em;
+}
+
 .hold-card {
   width: 100%;
   min-height: 260px;

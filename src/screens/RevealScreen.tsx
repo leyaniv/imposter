@@ -29,7 +29,10 @@ interface Props {
   onDone: () => void;
 }
 
-/** המסך של המתחזה בנוי בדיוק כמו המסך של שחקן רגיל, כדי שאי אפשר יהיה לזהות אותו ממבט מהצד */
+/**
+ * המסך של המתחזה בנוי בדיוק כמו המסך של שחקן רגיל, כדי שאי אפשר יהיה לזהות אותו ממבט מהצד.
+ * בשורה הגדולה המתחזה רואה את התפקיד שלו ולא את הרמז, כדי שלא יחשוב שהרמז הוא המילה הסודית.
+ */
 export default function RevealScreen({ role, doneLabel, onDone }: Props) {
   const [seen, setSeen] = useState(false);
 
@@ -38,9 +41,21 @@ export default function RevealScreen({ role, doneLabel, onDone }: Props) {
       <div className="screen-body center">
         <HoldToReveal onFirstReveal={() => setSeen(true)}>
           {role.category && <p className="category-tag">{he.category(role.category)}</p>}
-          <p className="reveal-label">{role.imposter ? he.reveal.imposterLabel : he.reveal.crewLabel}</p>
-          <p className="reveal-word">{role.text}</p>
-          <p className="reveal-footer">{role.imposter ? he.reveal.imposterFooter : he.reveal.crewFooter}</p>
+          {role.imposter ? (
+            <>
+              <p className="reveal-label">{he.reveal.imposterLabel}</p>
+              <p className="reveal-word">{he.reveal.imposterRole}</p>
+              <p className="reveal-footer">
+                {he.reveal.imposterHint} <span className="reveal-hint">{role.text}</span>
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="reveal-label">{he.reveal.crewLabel}</p>
+              <p className="reveal-word">{role.text}</p>
+              <p className="reveal-footer">{he.reveal.crewFooter}</p>
+            </>
+          )}
         </HoldToReveal>
       </div>
       <div className="screen-actions">
