@@ -32,6 +32,7 @@ import {
   type RoomSettings,
   type RoomState,
   type RoundState,
+  type TurnState,
   type VoteResult,
   type WinReason,
 } from '../src/online/protocol';
@@ -78,6 +79,8 @@ export interface Room {
   seenIds: string[];
   /** מי מהסבב יצא מהחדר באמצע (הם גם ב-round.eliminatedIds) */
   leftIds: string[];
+  /** מי מדבר עכשיו. חסר בחדר שנשמר לפני שהיה תור: אז זה מי שהתחיל (turnOf) */
+  turn?: TurnState;
   /** הסבב נגמר כי מתחזה יצא מהחדר */
   imposterLeft: boolean;
   vote?: StoredVote;
@@ -227,10 +230,34 @@ function afterSeen(room: Room): Room {
   return waiting ? room : { ...room, phase: 'play' };
 }
 
+/** התור הנוכחי. בחדר שנשמר לפני שהיה תור: מי שהתחיל */
+function turnOf(room: Room): TurnState {
+  const round = room.round!;
+  return room.turn ?? { playerId: round.players[round.startIndex].id, number: 0 };
+}
+
+/** התור עובר לשחקן הבא שעוד במשחק, עם כיוון השעון (מי שהודח או יצא מדולג) */
+function nextTurn(room: Room, turn: TurnState): TurnState {
+  const { players } = room.round!;
+  const from = players.findIndex((player) => player.id === turn.playerId);
+  for (let step = 1; step <= players.length; step++) {
+    const index = (from + step) % players.length;
+    if (active(room, players[index].id)) return { playerId: players[index].id, number: turn.number + 1 };
+  }
+  return turn;
+}
+
+/** מי שהתור שלו הודח או יצא: התור עובר לבא אחריו */
+function keepTurn(room: Room): Room {
+  if (!room.round || (room.phase !== 'reveal' && room.phase !== 'play')) return room;
+  const turn = turnOf(room);
+  return active(room, turn.playerId) ? room : { ...room, turn: nextTurn(room, turn) };
+}
+
 /** הסבב השתנה. אם נקבע מנצח: סוף הסבב, והנקודות של ההצבעות ושל הניצחון נוספות לניקוד */
 function withRound(room: Room, round: Round): Room {
   if (round === room.round) return room;
-  if (!round.winner || room.round?.winner) return { ...room, round };
+  if (!round.winner || room.round?.winner) return keepTurn({ ...room, round });
   return {
     ...room,
     round,
@@ -344,6 +371,7 @@ function startRound(room: Room, now: number, rng: Rng): ActionResult {
       round,
       usedWords,
       roundNumber: room.roundNumber + 1,
+      turn: { playerId: round.players[round.startIndex].id, number: 0 },
       seenIds: [],
       leftIds: [],
       imposterLeft: false,
@@ -467,6 +495,16 @@ export function act(room: Room, playerId: string, message: ClientMessage, now: n
       if (room.phase !== 'reveal') return { error: 'wrong_phase' };
       return touch({ ...room, phase: 'play' });
 
+    case 'turn:next': {
+      if (!idle(room)) return { error: room.phase === 'play' ? 'busy' : 'wrong_phase' };
+      const turn = turnOf(room);
+      if (!isHost && turn.playerId !== playerId) return { error: 'not_allowed' };
+      // התור כבר זז: מישהו אחר לחץ באותו רגע. לא מקדמים שוב, אחרת התור היה מדלג על שחקן
+      if (message.turn !== turn.number) return { room };
+      // התוצאה של הצבעה שנכשלה מוצגת רק עד שהתור זז, אחרת היא נראית כאילו קרתה עכשיו
+      return touch({ ...room, turn: nextTurn(room, turn), lastVote: undefined });
+    }
+
     case 'vote:start': {
       if (!idle(room)) return { error: room.phase === 'play' ? 'busy' : 'wrong_phase' };
       const { targetId } = message;
@@ -533,6 +571,7 @@ export function act(room: Room, playerId: string, message: ClientMessage, now: n
         ...room,
         phase: 'lobby',
         round: undefined,
+        turn: undefined,
         seenIds: [],
         leftIds: [],
         imposterLeft: false,
@@ -561,6 +600,7 @@ function roundView(room: Room, playerId: string, connected: ReadonlySet<string>)
     number: room.roundNumber,
     players: round.players.map(({ id, name }) => ({ id, name })),
     starterId: round.players[round.startIndex].id,
+    turn: turnOf(room),
     seenIds: room.seenIds,
     leftIds: room.leftIds,
     eliminatedIds: round.eliminatedIds,
@@ -695,6 +735,8 @@ export function parseMessage(raw: string): ClientMessage | null {
       return isString(msg.targetId) ? { type: 'vote:start', targetId: msg.targetId } : null;
     case 'vote:cast':
       return typeof msg.yes === 'boolean' ? { type: 'vote:cast', yes: msg.yes } : null;
+    case 'turn:next':
+      return Number.isInteger(msg.turn) && (msg.turn as number) >= 0 ? { type: 'turn:next', turn: msg.turn as number } : null;
     case 'guess:mark':
       return typeof msg.correct === 'boolean' ? { type: 'guess:mark', correct: msg.correct } : null;
     default:

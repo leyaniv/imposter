@@ -13,30 +13,53 @@ interface Props {
   scores?: Record<string, number>;
   /** כשמוגדר, אפשר ללחוץ על שחקנים שעוד במשחק */
   onSelect?: (index: number) => void;
+  /** כשמוגדר, החץ באמצע הוא כפתור שמקדם את התור */
+  onAdvance?: () => void;
+  /** החץ מהבהב כדי למשוך תשומת לב (התור הגיע לטלפון הזה) */
+  nudge?: boolean;
 }
 
 /** השחקנים במעגל לפי סדר הישיבה: שחקן 1 למעלה, והשאר עם כיוון השעון */
-export default function PlayerCircle({ players, highlightIndex, landed, eliminatedIds = [], scores, onSelect }: Props) {
+export default function PlayerCircle({
+  players,
+  highlightIndex,
+  landed,
+  eliminatedIds = [],
+  scores,
+  onSelect,
+  onAdvance,
+  nudge,
+}: Props) {
   const radius = 40; // אחוזים מגודל הריבוע
   const showScores = !!scores && hasScores(players, scores);
+  const arrow = (
+    <svg className="clockwise-arrow" viewBox="0 0 100 100" aria-hidden="true">
+      <defs>
+        <marker id="arrowhead" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+          <path d="M0 0 L10 5 L0 10 z" fill="currentColor" />
+        </marker>
+      </defs>
+      <path
+        d="M50 22 A28 28 0 1 1 25.75 36"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinecap="round"
+        markerEnd="url(#arrowhead)"
+      />
+    </svg>
+  );
 
   return (
     <div className={`player-circle${players.length > 8 ? ' compact' : ''}${showScores ? ' with-scores' : ''}`}>
-      <svg className="clockwise-arrow" viewBox="0 0 100 100" aria-hidden="true">
-        <defs>
-          <marker id="arrowhead" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto">
-            <path d="M0 0 L10 5 L0 10 z" fill="currentColor" />
-          </marker>
-        </defs>
-        <path
-          d="M50 22 A28 28 0 1 1 25.75 36"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-          markerEnd="url(#arrowhead)"
-        />
-      </svg>
+      {onAdvance ? (
+        <button className={`turn-advance${nudge ? ' nudge' : ''}`} onClick={onAdvance}>
+          {arrow}
+          <span className="turn-advance-label">{he.online.turn.advance}</span>
+        </button>
+      ) : (
+        arrow
+      )}
 
       {players.map((player, i) => {
         const angle = (2 * Math.PI * i) / players.length;

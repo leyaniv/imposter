@@ -13,8 +13,9 @@ export type { ScoredVote };
  * 4: העברת אירוח, בחירת מחליף ביציאה, שינוי סדר באמצע סבב.
  * 5: המארח יכול לסגור את החדר (כשהוא עובר למשחק מקומי).
  * 6: ניקוד לפי מי שצדק בהצבעות, ומי שפתח הצבעה לא יכול לשנות את הקול שלו.
+ * 7: התור הנוכחי, שבעל התור או המארח מקדמים.
  */
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 7;
 
 export const CODE_LENGTH = 6;
 /** כמו באורך השם במסך ההגדרות */
@@ -60,6 +61,11 @@ export type ClientMessage =
   | { type: 'game:start' }
   | { type: 'role:seen' }
   | { type: 'reveal:skip' }
+  /**
+   * בעל התור או המארח מקדמים את התור. turn הוא מספר התור שהטלפון ראה (TurnState.number):
+   * אם התור כבר זז (מישהו אחר לחץ באותו רגע), הלחיצה לא עושה כלום, כדי שהתור לא ידלג על שחקן
+   */
+  | { type: 'turn:next'; turn: number }
   | { type: 'round:end' }
   | { type: 'round:next' }
   | { type: 'round:lobby' }
@@ -128,7 +134,7 @@ export interface VoteState {
   myVote?: boolean;
 }
 
-/** התוצאה של ההצבעה האחרונה. נשארת עד ההצבעה הבאה */
+/** התוצאה של ההצבעה האחרונה. נשארת עד ההצבעה הבאה, או עד שהתור זז */
 export interface VoteResult {
   id: number;
   targetId: string;
@@ -139,12 +145,20 @@ export interface VoteResult {
   eliminated: boolean;
 }
 
+/** מי מדבר עכשיו בשלב הדיבור */
+export interface TurnState {
+  playerId: string;
+  /** עולה בכל קידום. הלחיצה על "קידום התור" שולחת אותו, כדי ששתי לחיצות ביחד יקדמו רק פעם אחת */
+  number: number;
+}
+
 export interface RoundState {
   /** עולה בכל סבב, כדי לדעת שזה סבב חדש */
   number: number;
   /** מי בסבב, לפי סדר הישיבה כשהסבב התחיל. עם השמות, כי מי שיצא באמצע כבר לא ברשימת החדר */
   players: { id: string; name: string }[];
   starterId: string;
+  turn: TurnState;
   /** מי כבר ראה את התפקיד שלו */
   seenIds: string[];
   /** מי יצא מהחדר באמצע הסבב (הם גם ב-eliminatedIds) */

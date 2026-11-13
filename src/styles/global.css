@@ -651,6 +651,72 @@ button {
   color: var(--border);
 }
 
+/* החץ כשאפשר ללחוץ עליו כדי לקדם את התור: בצבע ההדגשה, עם תווית באמצע */
+.turn-advance {
+  position: absolute;
+  inset: 25%;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.turn-advance .clockwise-arrow {
+  inset: 0;
+  color: inherit;
+}
+
+.turn-advance-label {
+  position: relative;
+  max-width: 46%;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.turn-advance:active {
+  transform: scale(0.94);
+}
+
+.turn-advance:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+/* התור הגיע לטלפון הזה */
+.turn-advance.nudge {
+  animation: nudge 600ms ease-in-out 3;
+}
+
+@keyframes nudge {
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+/* "התור של נימי" בשורה אחת */
+.turn-line {
+  display: flex;
+  justify-content: center;
+  min-height: 2.4rem;
+  margin: 0;
+}
+
+.turn-name {
+  display: inline-block;
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
 .seat {
   position: absolute;
   transform: translate(-50%, -50%);

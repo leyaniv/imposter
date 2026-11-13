@@ -153,7 +153,6 @@ export default function StartScreen({
           scores={scores}
           onSelect={done ? setEliminating : undefined}
         />
-        <p className={`muted${done ? '' : ' invisible'}`}>{he.start.clockwise}</p>
         <p className={`help${done ? '' : ' invisible'}`}>{he.start.eliminateHint}</p>
         {round.showCategory && <p className="category-tag">{he.category(round.category)}</p>}
         {round.imposterIds.length > 1 && <p className="notice">{he.start.twoImposters}</p>}

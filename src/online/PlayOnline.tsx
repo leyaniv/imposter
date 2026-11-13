@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import ConfirmDialog from '../components/ConfirmDialog';
 import PlayerCircle from '../components/PlayerCircle';
 import WordReport from '../components/WordReport';
@@ -6,6 +6,7 @@ import type { WordProblem } from '../game/types';
 import { useStarterDraw } from '../hooks/useStarterDraw';
 import { he } from '../i18n/he';
 import RevealScreen from '../screens/RevealScreen';
+import { vibrate } from '../ui/vibrate';
 import ConnectionNotice from './ConnectionNotice';
 import type { ConnectionStatus } from './connection';
 import type { RoomState, RoundState } from './protocol';
@@ -21,6 +22,8 @@ interface Props {
   onVote: (targetId: string) => void;
   onFreeGuess: () => void;
   onEndRound: () => void;
+  /** מקדמים את התור. turn: מספר התור שהמסך הזה מציג */
+  onTurnNext: (turn: number) => void;
   /** הפס העליון: השתקה, ניהול החדר, הגדרות ויציאה (RoomBar) */
   bar: ReactNode;
 }
@@ -48,7 +51,7 @@ function markDrawn(key: string) {
 
 type Overlay = { kind: 'peek' } | { kind: 'report' } | { kind: 'end' } | { kind: 'guess' } | { kind: 'vote'; index: number } | null;
 
-/** שלב הדיבור: מי מתחיל, המעגל (לחיצה על שם פותחת הצבעה), הצצה חוזרת, ניחוש חופשי ומשוב על המילה */
+/** שלב הדיבור: של מי התור, המעגל (לחיצה על שם פותחת הצבעה), הצצה חוזרת, ניחוש חופשי ומשוב על המילה */
 export default function PlayOnline({
   state,
   round,
@@ -58,6 +61,7 @@ export default function PlayOnline({
   onVote,
   onFreeGuess,
   onEndRound,
+  onTurnNext,
   bar,
 }: Props) {
   const [overlay, setOverlay] = useState<Overlay>(null);
@@ -69,6 +73,18 @@ export default function PlayOnline({
   const out = round.eliminatedIds.includes(state.you);
   const role = shownRole(round)!;
   const lastVote = round.lastVote && !round.lastVote.eliminated ? round.lastVote : undefined;
+  const { turn } = round;
+  const turnIndex = round.players.findIndex((player) => player.id === turn.playerId);
+  const myTurn = turn.playerId === state.you;
+  const canAdvance = done && (isHost || myTurn);
+
+  // רטט כשהתור מגיע לטלפון הזה (לא בתור הראשון: שם כבר יש רטט של סוף ההגרלה)
+  const lastTurn = useRef(turn.number);
+  useEffect(() => {
+    if (turn.number === lastTurn.current) return;
+    lastTurn.current = turn.number;
+    if (myTurn) vibrate([60, 80, 60]);
+  }, [turn.number, myTurn]);
 
   if (overlay?.kind === 'peek') {
     return <RevealScreen key="peek" role={role} doneLabel={he.forgot.done} onDone={() => setOverlay(null)} />;
@@ -98,25 +114,32 @@ export default function PlayOnline({
       {bar}
       <div className="screen-body center">
         <ConnectionNotice status={status} />
-        {lastVote ? (
+        {lastVote && (
           <p className="notice" role="status">
-            {he.online.vote.count(lastVote.yes, lastVote.no)}. {he.online.vote.noMajority}
+            {he.online.vote.noMajority(round.players.find((player) => player.id === lastVote.targetId)?.name ?? '')}
+          </p>
+        )}
+        {done ? (
+          <p className="turn-line" role="status">
+            <span key={turn.number} className="turn-name pop">
+              {myTurn ? he.online.turn.yours : he.online.turn.of(round.players[turnIndex]?.name ?? '')}
+            </span>
           </p>
         ) : (
-          <>
-            <p className="muted">{done ? he.start.title : he.start.drawing}</p>
-            <p className={`big-name${done ? ' pop' : ' invisible'}`}>{round.players[startIndex]?.name}</p>
-          </>
+          <p className="turn-line">
+            <span className="muted">{he.start.drawing}</span>
+          </p>
         )}
         <PlayerCircle
           players={round.players}
-          highlightIndex={lastVote ? -1 : highlightIndex}
-          landed={done && drawing}
+          highlightIndex={done ? turnIndex : highlightIndex}
+          landed={done && drawing && turn.number === 0}
           eliminatedIds={round.eliminatedIds}
           scores={state.scores}
           onSelect={done && !out ? (index) => round.players[index].id !== state.you && setOverlay({ kind: 'vote', index }) : undefined}
+          onAdvance={canAdvance ? () => onTurnNext(turn.number) : undefined}
+          nudge={myTurn}
         />
-        <p className={`muted${done ? '' : ' invisible'}`}>{he.start.clockwise}</p>
         <p className={`help${done ? '' : ' invisible'}`}>{out ? he.online.round.out : he.online.round.votingHint}</p>
         {round.category && <p className="category-tag">{he.category(round.category)}</p>}
         {round.imposterCount > 1 && <p className="notice">{he.start.twoImposters}</p>}

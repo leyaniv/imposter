@@ -381,6 +381,7 @@ export function RoomView({ code, name, onEnd, mode, onModeChange, local, onStart
         onVote={(targetId) => send({ type: 'vote:start', targetId })}
         onFreeGuess={() => send({ type: 'guess:start' })}
         onEndRound={() => hostAction({ type: 'round:end' })}
+        onTurnNext={(turn) => send({ type: 'turn:next', turn })}
         bar={bar}
       />
     );

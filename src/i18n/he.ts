@@ -107,7 +107,6 @@ export const he = {
   start: {
     drawing: 'מגרילים מי מתחיל...',
     title: 'התור הראשון:',
-    clockwise: 'ממשיכים עם כיוון השעון',
     eliminateHint: 'הדחה בהצבעה: לחצו על השם',
     twoImposters: 'שימו לב: יש במשחק שני מתחזים',
     eliminateConfirm: (name: string) => `להדיח את ${name}? הטלפון יגלה אם זה המתחזה.`,
@@ -260,6 +259,11 @@ export const he = {
       leaveYes: 'יציאה',
       stay: 'נשארים',
     },
+    turn: {
+      of: (name: string) => `התור של ${name}`,
+      yours: 'תורך!',
+      advance: 'קידום התור',
+    },
     round: {
       done: 'הסתרתי, ממשיכים',
       waitingTitle: 'ממתינים לכולם',
@@ -290,7 +294,7 @@ export const he = {
       closeConfirm: 'לסגור את ההצבעה עכשיו? מי שעוד לא הצביע ייספר נגד.',
       closeYes: 'סגירה',
       count: (yes: number, no: number) => `${yes} בעד, ${no} נגד`,
-      noMajority: 'אין רוב, ממשיכים לשחק.',
+      noMajority: (name: string) => `הצבעה על ${name}: אין רוב. ממשיכים לשחק.`,
       starter: 'ההצעה שלכם נספרת בעד. השתכנעתם שזו טעות? אפשר לבטל את ההצבעה.',
     },
     scoring: {
