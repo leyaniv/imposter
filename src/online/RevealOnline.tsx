@@ -42,6 +42,7 @@ export default function RevealOnline({ state, round, status, onSeen, onSkip, bar
       <RevealScreen
         role={role}
         doneLabel={he.online.round.done}
+        autoContinue
         onDone={() => {
           setSeenHere(true);
           onSeen();

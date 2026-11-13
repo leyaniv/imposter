@@ -100,6 +100,8 @@ export const he = {
     crewFooter: 'נסו לגלות מי מתחזה',
     imposterHint: 'רמז למילה הסודית:',
     lookFirst: 'קודם תסתכלו',
+    /** על הכפתור, בזמן שסופרים לפני שממשיכים לבד */
+    autoContinue: (seconds: number) => `ממשיכים בעוד ${seconds}…`,
     next: 'הסתרתי, מעבירים הלאה',
     last: 'הסתרתי, מי מתחיל?',
   },

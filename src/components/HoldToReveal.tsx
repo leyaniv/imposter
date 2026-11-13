@@ -6,15 +6,27 @@ interface Props {
   /** התוכן הסודי, שמוצג רק כל עוד מחזיקים */
   children: ReactNode;
   onFirstReveal: () => void;
+  /** נקרא כשמתחילים להחזיק וכשמשחררים */
+  onHeldChange?: (held: boolean) => void;
 }
 
 /**
  * לחיצה ארוכה מציגה, שחרור מסתיר.
  * מתנהג זהה למתחזה ולשחקן רגיל: אותו רטט, אותו גודל, אותו מסך מכוסה.
  */
-export default function HoldToReveal({ children, onFirstReveal }: Props) {
+export default function HoldToReveal({ children, onFirstReveal, onHeldChange }: Props) {
   const [held, setHeld] = useState(false);
   const seen = useRef(false);
+
+  // שחרור מגיע מכמה אירועים בבת אחת (הרמת אצבע, יציאה מהכרטיס, איבוד פוקוס), ולכן מדווחים רק על שינוי
+  const firstRender = useRef(true);
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    onHeldChange?.(held);
+  }, [held]);
 
   const show = () => {
     setHeld(true);

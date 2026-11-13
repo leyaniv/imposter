@@ -200,6 +200,31 @@ button {
   color: var(--accent-text);
 }
 
+/* ספירה לפני שממשיכים לבד: הכפתור מתמלא מההתחלה לסוף. עם "פחות אנימציות" נשאר רק המספר */
+.btn-countdown {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-countdown-fill {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: 0;
+  background: color-mix(in srgb, var(--accent-text) 22%, transparent);
+  animation: btn-countdown-fill linear forwards;
+}
+
+@keyframes btn-countdown-fill {
+  to {
+    inline-size: 100%;
+  }
+}
+
+.btn-countdown .btn-label {
+  position: relative;
+}
+
 .btn-secondary {
   background: var(--surface-2);
 }
