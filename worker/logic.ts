@@ -327,7 +327,8 @@ function leaveRound(room: Room, playerId: string): Room {
     return { ...room, leftIds, phase: 'roundEnd', imposterLeft: true, vote: undefined, freeGuess: undefined };
   }
 
-  const vote = room.vote && room.vote.targetId !== playerId ? room.vote : undefined;
+  // הצבעה על מי שיצא, או שהוא פתח, מתבטלת: אחרת הקול שלו בעד נעלם, ואף אחד לא יכול לבטל אותה
+  const vote = room.vote && room.vote.targetId !== playerId && room.vote.startedBy !== playerId ? room.vote : undefined;
   const eliminatedIds = round.eliminatedIds.includes(playerId) ? round.eliminatedIds : [...round.eliminatedIds, playerId];
   const without: Round = { ...round, eliminatedIds };
   const next = afterSeen({ ...room, leftIds, vote });

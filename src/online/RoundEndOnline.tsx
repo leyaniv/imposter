@@ -4,6 +4,7 @@ import Scoreboard from '../components/Scoreboard';
 import StickyActions from '../components/StickyActions';
 import WordReport from '../components/WordReport';
 import { CAUGHT_IMPOSTER_POINTS, IMPOSTER_POINTS } from '../game/rules';
+import { MIN_PLAYERS } from '../game/setup';
 import type { WordProblem } from '../game/types';
 import { he } from '../i18n/he';
 import ConnectionNotice from './ConnectionNotice';
@@ -38,6 +39,8 @@ export default function RoundEndOnline({
 }: Props) {
   const reveal = round.reveal!;
   const isHost = state.hostId === state.you;
+  // מי שיצא כבר לא ב-state.players, ומי שהצטרף בינתיים כן: הכפתור חוזר אם מישהו נכנס
+  const enough = state.players.length >= MIN_PLAYERS;
   const nameOf = (id: string) => round.players.find((player) => player.id === id)?.name ?? '';
 
   return (
@@ -72,8 +75,17 @@ export default function RoundEndOnline({
       </div>
 
       <StickyActions>
-        {/* יציאה מהחדר: ב-X שבפס העליון */}
-        {isHost ? (
+        {/* יציאה מהחדר: ב-X שבפס העליון. אם נשארו פחות מדי שחקנים, אין "עוד סבב" (השרת היה דוחה אותו) */}
+        {!enough ? (
+          <>
+            <p className="help center-text">{he.online.round.notEnough(MIN_PLAYERS)}</p>
+            {isHost && (
+              <button className="btn btn-primary" onClick={onLobby}>
+                {he.online.round.toLobby}
+              </button>
+            )}
+          </>
+        ) : isHost ? (
           <div className="actions-row">
             <button className="btn btn-primary" onClick={onNext}>
               {he.roundEnd.again}

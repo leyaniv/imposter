@@ -1,4 +1,4 @@
-import { Component, type ReactNode } from 'react';
+import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { track } from '../analytics/posthog';
 import { rehydrate, serialize } from '../game/persistence';
 import { STORAGE_KEY } from '../hooks/usePersistentReducer';
@@ -6,6 +6,8 @@ import { he } from '../i18n/he';
 
 interface State {
   crashed: boolean;
+  /** בפיתוח בלבד: השגיאה והרכיב שזרק, כדי לראות אותם גם בטלפון (אין שם קונסול) */
+  detail?: string;
 }
 
 /**
@@ -20,8 +22,13 @@ export default class ErrorBoundary extends Component<{ children: ReactNode }, St
     return { crashed: true };
   }
 
-  componentDidCatch(error: unknown) {
+  componentDidCatch(error: unknown, info: ErrorInfo) {
     track('app_crash', { message: String(error instanceof Error ? error.message : error).slice(0, 200) });
+    if (import.meta.env.DEV) {
+      const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+      const where = (info.componentStack ?? '').trim().split('\n').slice(0, 6).join('\n');
+      this.setState({ detail: `${message}\n${where}` });
+    }
   }
 
   private goHome = () => {
@@ -46,6 +53,11 @@ export default class ErrorBoundary extends Component<{ children: ReactNode }, St
         <div className="screen-body center">
           <h1 className="heading">{he.crash.title}</h1>
           <p className="muted">{he.crash.text}</p>
+          {this.state.detail && (
+            <pre dir="ltr" style={{ whiteSpace: 'pre-wrap', textAlign: 'left', fontSize: 12, maxWidth: '100%' }}>
+              {this.state.detail}
+            </pre>
+          )}
         </div>
         <div className="screen-actions">
           <button className="btn btn-primary" onClick={() => location.reload()}>

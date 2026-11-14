@@ -291,6 +291,18 @@ describe('leaving mid-round', () => {
     expect(after.round!.eliminatedIds).toContain(target);
   });
 
+  it('cancels the vote when the player who opened it leaves or is kicked', () => {
+    const room = playing(5);
+    const [opener, target] = crew(room).filter((id) => id !== 'p1');
+    const voting = send(room, opener, { type: 'vote:start', targetId: target });
+    for (const after of [send(voting, opener, { type: 'room:leave' }), send(voting, 'p1', { type: 'lobby:kick', playerId: opener })]) {
+      expect(after.vote).toBeUndefined();
+      expect(after.phase).toBe('play');
+      // אפשר לפתוח הצבעה חדשה
+      expect(send(after, 'p1', { type: 'vote:start', targetId: target }).vote?.startedBy).toBe('p1');
+    }
+  });
+
   it('counts a regular player who left as out, and checks for a winner', () => {
     const room = playing(3);
     const leaver = crew(room).find((id) => id !== 'p1') ?? crew(room)[0];
