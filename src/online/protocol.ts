@@ -16,6 +16,7 @@ export type { ScoredVote };
  * 7: התור הנוכחי, שבעל התור או המארח מקדמים.
  * 8: מי לא במסך (הדף מוסתר), כדי שכולם יראו למי לקרוא.
  * 9: חזרה למקום של שחקן מנותק מטלפון אחר (claim), עם אישור של מישהו בחדר כשצריך.
+ *    ספירה לאחור עד שהאירוח עובר ממארח מנותק (hostGone), ו"אני אארח" לפני שהזמן נגמר.
  */
 export const PROTOCOL_VERSION = 9;
 
@@ -62,6 +63,8 @@ export type ClientMessage =
   /** newHostId: רק כשהמארח יוצא, מי יחליף אותו */
   | { type: 'room:leave'; newHostId?: string }
   | { type: 'host:transfer'; playerId: string }
+  /** המארח מנותק כבר זמן מה (HostGone.takeoverIn נגמר): השחקן הזה לוקח את האירוח בלי לחכות */
+  | { type: 'host:takeover' }
   /** המארח סוגר את החדר: כולם מנותקים והחדר נמחק */
   | { type: 'room:close' }
   | { type: 'lobby:reorder'; playerIds: string[] }
@@ -229,6 +232,19 @@ export interface RoomState {
   scores: Record<string, number>;
   /** בקשות של טלפון אחר לחזור למקום של שחקן, שמחכות לאישור. השחקן עצמו לא רואה בקשה על המקום שלו */
   claims?: SeatClaim[];
+  /** המארח מנותק. חסר כשהוא מחובר (גם אם הדף שלו מוסתר) */
+  hostGone?: HostGone;
+}
+
+/**
+ * כמה זמן נשאר, מהרגע שהמצב נשלח. הטלפון מתרגם לשעה לפי השעון שלו, כדי שהפרש שעונים לא ישנה את הספירה.
+ * nextHostId: מי יקבל את האירוח כשהזמן ייגמר. null אם אין אף שחקן מחובר אחר
+ */
+export interface HostGone {
+  handoverIn: number;
+  /** מתי אפשר ללחוץ "אני אארח" (0: כבר עכשיו) */
+  takeoverIn: number;
+  nextHostId: string | null;
 }
 
 /** טלפון שמבקש לחזור למקום של playerId */

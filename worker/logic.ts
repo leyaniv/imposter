@@ -33,6 +33,7 @@ import {
   type RoomState,
   type RoundState,
   type SeatClaim,
+  type HostGone,
   type TurnState,
   type VoteResult,
   type WinReason,
@@ -106,6 +107,16 @@ export const RESERVE_TTL_MS = 10 * 60 * 1000;
 export const IDLE_TTL_MS = 2 * 60 * 60 * 1000;
 /** כמה זמן מחכים למארח שהתנתק לפני שהאירוח עובר. טלפון שננעל לרגע לא אמור לאבד את האירוח */
 export const HOST_AWAY_MS = 2 * 60 * 1000;
+/**
+ * אחרי כמה זמן בלי מארח כל שחקן מחובר יכול ללחוץ "אני אארח". קצר מ-HOST_AWAY_MS, כי זה בהחלטה של מי שמחכה.
+ * ההעברה האוטומטית לא מתקצרת: מארח שעבר לוואטסאפ כדי לשלוח את הקישור יכול להתנתק לרגע (באייפון זה קורה מהר)
+ */
+export const HOST_TAKEOVER_MS = 15 * 1000;
+
+/** בפיתוח HOST_AWAY_MS מתקצר לשניות, ו"אני אארח" מתקצר איתו */
+export function takeoverDelay(awayMs: number): number {
+  return Math.min(HOST_TAKEOVER_MS, awayMs / 4);
+}
 
 /** כמו ברירת המחדל של הטלפון האחד, והצבעה גלויה */
 export const DEFAULT_SETTINGS: RoomSettings = {
@@ -151,6 +162,8 @@ export interface ActOptions {
   rng?: Rng;
   /** מי מחובר עכשיו. מי שמנותק לא נספר בהצבעה. ברירת מחדל: כולם */
   connected?: ReadonlySet<string>;
+  /** אחרי כמה זמן האירוח עובר ממארח מנותק. ממנו נגזר מתי אפשר לקחת אותו בעצמך */
+  hostAwayMs?: number;
 }
 
 function sameName(a: string, b: string): boolean {
@@ -364,6 +377,18 @@ function reorderRound(round: Round, order: readonly string[]): Round {
   return { ...round, players, startIndex: players.findIndex((player) => player.id === starterId) };
 }
 
+/** המארח מנותק: כמה זמן עד שהאירוח עובר, למי, ומתי אפשר לקחת אותו. undefined כשהמארח מחובר */
+export function hostGone(room: Room, connected: ReadonlySet<string>, now: number, awayMs = HOST_AWAY_MS): HostGone | undefined {
+  const since = room.hostAwaySince;
+  if (!room.hostId || since === undefined || connected.has(room.hostId)) return undefined;
+  const next = nextHost(room, room.hostId, connected);
+  return {
+    handoverIn: Math.max(0, since + awayMs - now),
+    takeoverIn: Math.max(0, since + takeoverDelay(awayMs) - now),
+    nextHostId: next && connected.has(next) ? next : null,
+  };
+}
+
 /** המארח התנתק או חזר: מתעדכן מתי הוא נעלם. נקרא כשטלפון מתחבר או מתנתק */
 export function trackHost(room: Room, connected: ReadonlySet<string>, now: number): Room {
   const away = !!room.hostId && !connected.has(room.hostId);
@@ -486,6 +511,14 @@ export function act(room: Room, playerId: string, message: ClientMessage, now: n
 
     case 'room:close':
       return { room, close: true };
+
+    // כמו ההעברה האוטומטית אחרי HOST_AWAY_MS, רק מוקדם יותר ולמי שלחץ. לכן גם באמצע הצבעה
+    case 'host:takeover': {
+      const since = room.hostAwaySince;
+      if (isHost || !room.hostId || since === undefined || connected.has(room.hostId)) return { error: 'not_allowed' };
+      if (now < since + takeoverDelay(options.hostAwayMs ?? HOST_AWAY_MS)) return { error: 'not_allowed' };
+      return touch({ ...room, hostId: playerId, hostAwaySince: undefined });
+    }
 
     case 'host:transfer':
       if (message.playerId === playerId || !room.players.some((p) => p.id === message.playerId)) {
@@ -744,6 +777,7 @@ const BARE: readonly ClientMessage['type'][] = [
   'guess:start',
   'guess:cancel',
   'scores:reset',
+  'host:takeover',
 ];
 
 /** בודק שהודעה מהטלפון בנויה נכון. כל דבר אחר נדחה */

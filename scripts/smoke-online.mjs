@@ -311,19 +311,38 @@ async function main() {
     console.log('(stale connection skipped: run wrangler dev with --var STALE_MS:4000 and set STALE_MS=4000)');
   }
 
+  // המארח (יוסי) נעלם בלי לצאת: כולם רואים ספירה לאחור, ולמי האירוח יעבור
+  const omer = await phone(code);
+  omer.send({ type: 'room:join', name: 'עומר', token: randomUUID(), version: VERSION });
+  const joined = await omer.stateWhere((s) => s.players.length === 2);
+  yossi2.close();
+  const counting = await omer.stateWhere((s) => !!s.hostGone);
+  assert.equal(counting.hostGone.nextHostId, joined.you);
+  assert.ok(counting.hostGone.takeoverIn > 0, 'no takeover right away');
+
   if (HOST_AWAY_MS) {
-    // המארח (יוסי) נעלם בלי לצאת: אחרי הזמן הקצוב האירוח עובר לשחקן המחובר
-    const omer = await phone(code);
-    omer.send({ type: 'room:join', name: 'עומר', token: randomUUID(), version: VERSION });
-    const joined = await omer.stateWhere((s) => s.players.length === 2);
-    yossi2.close();
-    const moved = await omer.stateWhere((s) => s.hostId === joined.you, HOST_AWAY_MS + 5000);
-    assert.equal(moved.hostId, moved.you);
+    // אחרי זמן קצר אפשר לקחת את האירוח בלי לחכות לסוף הספירה
+    await new Promise((resolve) => setTimeout(resolve, counting.hostGone.takeoverIn + 100));
+    omer.send({ type: 'host:takeover' });
+    await omer.stateWhere((s) => s.hostId === s.you && !s.hostGone);
+    console.log('host takeover ok');
+
+    // ובלי שאף אחד לוחץ: אחרי הזמן הקצוב האירוח עובר לשחקן המחובר
+    const noa = await phone(code);
+    noa.send({ type: 'room:join', name: 'נועה', token: randomUUID(), version: VERSION });
+    const noaJoined = await noa.stateWhere((s) => s.players.length === 3);
     omer.close();
+    const moved = await noa.stateWhere((s) => s.hostId === noaJoined.you, HOST_AWAY_MS + 5000);
+    assert.equal(moved.hostGone, undefined);
+    noa.close();
     console.log('host timeout ok');
   } else {
-    yossi2.close();
-    console.log('(host timeout skipped: run wrangler dev with --var HOST_AWAY_MS:3000 and set HOST_AWAY_MS=3000)');
+    assert.ok(counting.hostGone.handoverIn > 60_000);
+    omer.send({ type: 'host:takeover' });
+    assert.equal((await omer.next((m) => m.type === 'error')).code, 'not_allowed');
+    omer.close();
+    console.log('host countdown ok');
+    console.log('(host takeover and timeout skipped: run wrangler dev with --var HOST_AWAY_MS:3000 and set HOST_AWAY_MS=3000)');
   }
   console.log('\nall good');
 }

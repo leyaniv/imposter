@@ -1,9 +1,13 @@
 import { he } from '../i18n/he';
 import type { ConnectionStatus } from './connection';
+import HostGoneNotice from './HostGoneNotice';
 
-/** "מתחברים מחדש..." כשהחיבור לשרת נפל. בלי זה, המסך נראה תקין אבל לא מתעדכן */
+/**
+ * "מתחברים מחדש..." כשהחיבור לשרת נפל. בלי זה, המסך נראה תקין אבל לא מתעדכן.
+ * כשהחיבור תקין: אם המארח לא מחובר, כמה זמן עד שהאירוח עובר
+ */
 export default function ConnectionNotice({ status }: { status: ConnectionStatus }) {
-  if (status === 'open') return null;
+  if (status === 'open') return <HostGoneNotice />;
   return (
     <p className="notice connection-notice" role="status">
       {status === 'connecting' ? he.online.connecting : he.online.reconnecting}

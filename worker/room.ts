@@ -5,6 +5,7 @@ import {
   type ErrorCode,
   type LeftReason,
   type RoomSettings,
+  type RoomState,
   type SeatClaim,
   type ServerMessage,
 } from '../src/online/protocol';
@@ -16,6 +17,7 @@ import {
   cleanName,
   cleanupAt,
   createRoom,
+  hostGone,
   hostTimeout,
   join,
   nextAlarm,
@@ -109,7 +111,10 @@ export class Room extends DurableObject<Env> {
     if (message.type === 'presence') return this.setAway(ws, message.away);
     if (message.type === 'claim:answer') return this.answerClaim(ws, playerId, message.claimId, message.approve);
 
-    const result = act(this.room, playerId, message, Date.now(), { connected: this.connectedIds() });
+    const result = act(this.room, playerId, message, Date.now(), {
+      connected: this.connectedIds(),
+      hostAwayMs: this.hostAwayMs,
+    });
     if ('error' in result) return this.reject(ws, playerId, result.error);
     if (result.close) return this.closeRoom('hostClosed');
 
@@ -311,8 +316,7 @@ export class Room extends DurableObject<Env> {
   /** הפעולה נדחתה. שולחים שוב את המצב, כדי שהמסך לא יישאר עם שינוי שלא קרה (למשל סדר אחר) */
   private reject(ws: WebSocket, playerId: string, code: ErrorCode) {
     send(ws, { type: 'error', code });
-    const away = this.connectedIds(undefined, true);
-    send(ws, { type: 'state', state: view(this.room!, playerId, this.connectedIds(), away, this.claims()) });
+    send(ws, { type: 'state', state: this.views()(playerId) });
   }
 
   private disconnect(playerId: string, reason: LeftReason) {
@@ -326,14 +330,26 @@ export class Room extends DurableObject<Env> {
   /** שולח לכל טלפון את המצב שהוא רשאי לראות. closing: חיבור שנסגר עכשיו ועוד מופיע ברשימה */
   private broadcast(closing?: WebSocket) {
     if (!this.room) return;
-    const connected = this.connectedIds(closing);
-    const away = this.connectedIds(closing, true);
-    const claims = this.claims(closing);
+    const stateFor = this.views(closing);
     for (const ws of this.ctx.getWebSockets()) {
       if (ws === closing) continue;
       const { playerId } = ws.deserializeAttachment() as Attachment;
-      if (playerId) send(ws, { type: 'state', state: view(this.room, playerId, connected, away, claims) });
+      if (playerId) send(ws, { type: 'state', state: stateFor(playerId) });
     }
+  }
+
+  /** מה כל שחקן רואה עכשיו: החדר, מי מחובר, בקשות לחזור למקום, וכמה זמן נשאר למארח שהתנתק */
+  private views(closing?: WebSocket): (playerId: string) => RoomState {
+    const room = this.room!;
+    const connected = this.connectedIds(closing);
+    const away = this.connectedIds(closing, true);
+    const claims = this.claims(closing);
+    const gone = hostGone(room, connected, Date.now(), this.hostAwayMs);
+    return (playerId) => {
+      const state = view(room, playerId, connected, away, claims);
+      if (gone) state.hostGone = gone;
+      return state;
+    };
   }
 
   /** בקשות פתוחות לחזור למקום של מישהו, מטלפונים שעדיין מחוברים */

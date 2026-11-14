@@ -12,6 +12,7 @@ import { playRevealSound, playVoteSound } from '../ui/sound';
 import { vibrate } from '../ui/vibrate';
 import ConfirmDialog from '../components/ConfirmDialog';
 import FreeGuessOnline from './FreeGuessOnline';
+import { HostGoneContext } from './HostGoneNotice';
 import HostMenu from './HostMenu';
 import LeaveDialog from './LeaveDialog';
 import HostSetup from './HostSetup';
@@ -433,13 +434,13 @@ export function RoomView({ code, name, onEnd, mode, onModeChange, local, onStart
   }
 
   return (
-    <>
+    <HostGoneContext.Provider value={{ state, onTakeover: () => send({ type: 'host:takeover' }) }}>
       {screen}
       {leaveDialog || claimDialog}
       <p className={`toast${nowHost ? ' toast-on' : ''}`} role="status">
         {nowHost ? he.online.host.nowHost : ''}
       </p>
-    </>
+    </HostGoneContext.Provider>
   );
 }
 

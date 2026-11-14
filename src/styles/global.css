@@ -1626,6 +1626,16 @@ a.btn-ghost {
   align-self: center;
 }
 
+/* המארח לא מחובר: הודעה עם ספירה לאחור, ו"אני אארח" כשאפשר */
+.host-gone-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  text-align: center;
+}
+
 .center-text {
   text-align: center;
 }

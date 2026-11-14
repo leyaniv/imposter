@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { PROTOCOL_VERSION, type ClientMessage, type ErrorCode } from '../src/online/protocol';
 import {
   HOST_AWAY_MS,
+  HOST_TAKEOVER_MS,
   act,
   cleanupAt,
   createRoom,
+  hostGone,
   hostTimeout,
   join,
   nextAlarm,
@@ -199,5 +201,57 @@ describe('messages and saved rooms', () => {
     const { hostAwaySince, ...old } = roomWith(2);
     void hostAwaySince;
     expect(upgradeRoom(old as Room).hostAwaySince).toBeUndefined();
+  });
+});
+
+describe('the countdown while the host is gone', () => {
+  const others = new Set(['p2', 'p3']);
+  const gone = () => trackHost(roomWith(3), others, NOW);
+
+  it('tells everyone how long until hosting moves, and to whom', () => {
+    expect(hostGone(gone(), others, NOW + 20_000)).toEqual({
+      handoverIn: HOST_AWAY_MS - 20_000,
+      takeoverIn: 0,
+      nextHostId: 'p2',
+    });
+    expect(hostGone(gone(), others, NOW)?.takeoverIn).toBe(HOST_TAKEOVER_MS);
+    expect(hostGone(gone(), others, NOW + HOST_AWAY_MS + 9000)?.handoverIn).toBe(0);
+  });
+
+  it('skips players who are not connected, and says so when nobody is', () => {
+    expect(hostGone(gone(), new Set(['p3']), NOW)?.nextHostId).toBe('p3');
+    expect(hostGone(trackHost(roomWith(3), new Set(), NOW), new Set(), NOW)?.nextHostId).toBeNull();
+  });
+
+  it('is gone once the host is connected again', () => {
+    expect(hostGone(roomWith(3), new Set(['p1', 'p2', 'p3']), NOW)).toBeUndefined();
+    expect(hostGone(gone(), new Set(['p1', 'p2']), NOW)).toBeUndefined();
+  });
+
+  it('lets a connected player take over hosting after a short wait', () => {
+    const takeover = (room: Room, playerId: string, at: number, connected = others) =>
+      act(room, playerId, { type: 'host:takeover' }, at, { connected });
+    expect(takeover(gone(), 'p3', NOW + HOST_TAKEOVER_MS - 1)).toEqual({ error: 'not_allowed' });
+    const result = ok(takeover(gone(), 'p3', NOW + HOST_TAKEOVER_MS));
+    expect(result.room.hostId).toBe('p3');
+    expect(result.room.hostAwaySince).toBeUndefined();
+    // המארח מחובר, או שאף אחד לא נעלם
+    expect(takeover(gone(), 'p3', NOW + HOST_AWAY_MS, new Set(['p1', 'p3']))).toEqual({ error: 'not_allowed' });
+    expect(takeover(roomWith(3), 'p3', NOW + HOST_AWAY_MS)).toEqual({ error: 'not_allowed' });
+  });
+
+  it('works in the middle of a round too, like the automatic handover', () => {
+    const room = trackHost(playing(3), others, NOW);
+    expect(ok(act(room, 'p2', { type: 'host:takeover' }, NOW + HOST_TAKEOVER_MS, { connected: others })).room.hostId).toBe('p2');
+  });
+
+  it('shortens the takeover wait along with a short host timeout in development', () => {
+    const at = NOW + 1000;
+    expect(ok(act(gone(), 'p2', { type: 'host:takeover' }, at, { connected: others, hostAwayMs: 4000 })).room.hostId).toBe('p2');
+    expect(hostGone(gone(), others, NOW, 4000)).toEqual({ handoverIn: 4000, takeoverIn: 1000, nextHostId: 'p2' });
+  });
+
+  it('parses the takeover message', () => {
+    expect(parseMessage(JSON.stringify({ type: 'host:takeover' }))).toEqual({ type: 'host:takeover' });
   });
 });
