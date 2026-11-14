@@ -75,7 +75,7 @@ export default function EntryScreen({ code: linkCode, name: savedName, error, on
                 inputMode="numeric"
                 autoComplete="off"
                 enterKeyHint="go"
-                maxLength={CODE_LENGTH}
+                // בלי maxLength: הדפדפן היה חותך "028 241" (עם הרווח) לפני שמנקים אותו. הקיצור ל-6 ספרות נעשה למטה
                 autoFocus={!!savedName}
                 onFocus={() => setCodeFocused(true)}
                 onBlur={() => setCodeFocused(false)}
