@@ -30,6 +30,8 @@ export const he = {
   home: {
     newGame: 'משחק חדש',
     join: 'הצטרפות לחדר',
+    // הקוד מבודד כטקסט משמאל לימין, כמו ב"הצטרפות לחדר"
+    backToRoom: (code: string) => `חזרה לחדר ⁦${code}⁩`,
     rules: 'איך משחקים?',
     scores: 'צפייה בניקוד',
     about: 'אודות',

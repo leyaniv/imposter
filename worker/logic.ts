@@ -26,6 +26,7 @@ import {
   MAX_TOKEN_LENGTH,
   MIN_TOKEN_LENGTH,
   PROTOCOL_VERSION,
+  ROOM_IDLE_MS,
   type ClientMessage,
   type ErrorCode,
   type RoomPhase,
@@ -104,7 +105,7 @@ export interface Room {
 /** כמה זמן חדר שאף אחד לא הצטרף אליו מחכה לראשון */
 export const RESERVE_TTL_MS = 10 * 60 * 1000;
 /** אחרי כמה זמן בלי שינוי חדר נמחק */
-export const IDLE_TTL_MS = 2 * 60 * 60 * 1000;
+export const IDLE_TTL_MS = ROOM_IDLE_MS;
 /** כמה זמן מחכים למארח שהתנתק לפני שהאירוח עובר. טלפון שננעל לרגע לא אמור לאבד את האירוח */
 export const HOST_AWAY_MS = 2 * 60 * 1000;
 /**

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { trackShare } from '../analytics/events';
 import SettingsButton from '../components/SettingsButton';
 import { he } from '../i18n/he';
+import { formatCode } from '../online/protocol';
 import { shareGame } from '../ui/share';
 
 interface Props {
@@ -9,12 +10,15 @@ interface Props {
   showScores: boolean;
   onNewGame: () => void;
   onJoin: () => void;
+  /** הקוד של חדר שהטלפון עדיין בו (לא יצא ממנו), אם יש */
+  openRoom?: string;
+  onBackToRoom: () => void;
   onScores: () => void;
   onRules: () => void;
   onAbout: () => void;
 }
 
-export default function HomeScreen({ showScores, onNewGame, onJoin, onScores, onRules, onAbout }: Props) {
+export default function HomeScreen({ showScores, onNewGame, onJoin, openRoom, onBackToRoom, onScores, onRules, onAbout }: Props) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -54,7 +58,13 @@ export default function HomeScreen({ showScores, onNewGame, onJoin, onScores, on
         <p className="muted">{he.tagline}</p>
       </div>
       <div className="screen-actions">
-        <button className="btn btn-primary" onClick={onNewGame}>
+        {/* חדר פתוח (סגרו את הדפדפן, או פתחו מהמסך הראשי): החזרה אליו היא הפעולה הראשית, ומשחק חדש מקבל את העיצוב של "הצטרפות לחדר" */}
+        {openRoom && (
+          <button className="btn btn-primary" onClick={onBackToRoom}>
+            {he.home.backToRoom(formatCode(openRoom))}
+          </button>
+        )}
+        <button className={`btn ${openRoom ? 'btn-tinted' : 'btn-primary'}`} onClick={onNewGame}>
           {he.home.newGame}
         </button>
         <button className="btn btn-tinted" onClick={onJoin}>

@@ -19,7 +19,16 @@ import EntryScreen from './online/EntryScreen';
 import MessageScreen from './online/MessageScreen';
 import { RoomView, entryError } from './online/RoomView';
 import { isRoomCode } from './online/protocol';
-import { loadMode, loadName, loadSecretVote, loadSession, saveMode, saveName, saveSecretVote } from './online/session';
+import {
+  loadLatestRoom,
+  loadMode,
+  loadName,
+  loadSecretVote,
+  loadSession,
+  saveMode,
+  saveName,
+  saveSecretVote,
+} from './online/session';
 import type { RoomEnd } from './online/useRoom';
 import { reloadToLatest } from './pwa/registerServiceWorker';
 import HomeScreen from './screens/HomeScreen';
@@ -224,6 +233,9 @@ export default function App() {
     }
   }
 
+  // חדר שהטלפון לא יצא ממנו, למשל אחרי שהדפדפן נסגר. נקרא מחדש בכל ציור, כי יציאה מחדר מוחקת אותו
+  const openRoom = phase === 'home' ? loadLatestRoom() : null;
+
   let screen: ReactNode;
   switch (phase) {
     case 'home':
@@ -232,6 +244,8 @@ export default function App() {
           showScores={hasScores(state.settings.players, state.scores)}
           onNewGame={() => dispatch({ type: 'openSetup' })}
           onJoin={() => setOnline({ screen: 'join', code: '' })}
+          openRoom={openRoom?.code}
+          onBackToRoom={() => openRoom && setOnline({ screen: 'room', code: openRoom.code, name: loadName() })}
           onScores={() => dispatch({ type: 'openScores' })}
           onRules={() => dispatch({ type: 'openRules' })}
           onAbout={() => dispatch({ type: 'openAbout' })}

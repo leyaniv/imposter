@@ -1,10 +1,14 @@
 /**
  * מה שהטלפון זוכר על מצב "כל אחד בטלפון שלו", ב-localStorage:
- * השם (לפעם הבאה), והחדר הנוכחי עם הטוקן שאיתו חוזרים אליו אחרי ריענון.
+ * השם (לפעם הבאה), והחדרים שהטלפון בהם, כל אחד עם הטוקן שאיתו חוזרים אליו אחרי ריענון או מהמסך הראשי.
  */
+import { ROOM_IDLE_MS } from './protocol';
 
 const NAME_KEY = 'imposter:name';
-const SESSION_KEY = 'imposter:online';
+/** החדרים לפי קוד */
+const ROOMS_KEY = 'imposter:rooms';
+/** גרסה קודמת: חדר אחד בלבד. נקרא פעם אחת ועובר ל-ROOMS_KEY */
+const LEGACY_SESSION_KEY = 'imposter:online';
 
 export interface Session {
   code: string;
@@ -12,6 +16,70 @@ export interface Session {
   token: string;
   /** השרת אישר את ההצטרפות (welcome). עד אז, אחרי ניתוק שולחים שוב join עם אותו טוקן */
   joined: boolean;
+  /** מתי הטלפון קיבל מהחדר מצב לאחרונה. חדר שלא נראה זמן רב כנראה כבר נמחק בשרת */
+  seenAt?: number;
+}
+
+export type Rooms = Record<string, Session>;
+
+/** הטלפון ראה את החדר בזמן האחרון, אז הוא כנראה עדיין קיים בשרת (שמוחק חדר אחרי ROOM_IDLE_MS בלי שינוי) */
+function fresh(session: Session, now: number): boolean {
+  return session.seenAt !== undefined && now - session.seenAt < ROOM_IDLE_MS;
+}
+
+function validSession(value: unknown): Session | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const { code, token, joined, seenAt } = value as Record<string, unknown>;
+  if (typeof code !== 'string' || typeof token !== 'string') return null;
+  return { code, token, joined: !!joined, ...(typeof seenAt === 'number' && { seenAt }) };
+}
+
+/**
+ * החדרים השמורים. legacy: החדר היחיד מהגרסה הקודמת, אם יש.
+ * חדרים ישנים נמחקים כאן, כדי שהרשימה לא תגדל בלי סוף. חדר בלי seenAt נשאר (הצטרפות שעוד לא הושלמה)
+ */
+export function parseRooms(raw: unknown, legacy: unknown, now: number): Rooms {
+  const rooms: Rooms = {};
+  const legacySession = validSession(legacy);
+  // בלי seenAt: עדיין חוזרים אליו בקישור או בריענון, אבל לא מציעים אותו במסך הראשי, כי אין דרך לדעת אם הוא עדיין קיים
+  if (legacySession) rooms[legacySession.code] = legacySession;
+  if (typeof raw === 'object' && raw !== null) {
+    for (const value of Object.values(raw)) {
+      const session = validSession(value);
+      if (session) rooms[session.code] = session;
+    }
+  }
+  for (const [code, session] of Object.entries(rooms)) {
+    if (session.seenAt !== undefined && !fresh(session, now)) delete rooms[code];
+  }
+  return rooms;
+}
+
+/** החדר שהטלפון היה בו לאחרונה, אם הוא כנראה עדיין קיים. בשביל "חזרה לחדר" במסך הראשי */
+export function latestRoom(rooms: Rooms, now: number): Session | null {
+  const open = Object.values(rooms).filter((session) => session.joined && fresh(session, now));
+  return open.sort((a, b) => b.seenAt! - a.seenAt!)[0] ?? null;
+}
+
+function readJson(key: string): unknown {
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? 'null');
+  } catch {
+    return null;
+  }
+}
+
+function loadRooms(): Rooms {
+  return parseRooms(readJson(ROOMS_KEY), readJson(LEGACY_SESSION_KEY), Date.now());
+}
+
+function saveRooms(rooms: Rooms) {
+  try {
+    localStorage.setItem(ROOMS_KEY, JSON.stringify(rooms));
+    localStorage.removeItem(LEGACY_SESSION_KEY);
+  } catch {
+    // בלי אחסון, ריענון יחזיר למסך ההצטרפות
+  }
 }
 
 export function loadName(): string {
@@ -31,29 +99,31 @@ export function saveName(name: string) {
 }
 
 export function loadSession(code: string): Session | null {
-  try {
-    const session = JSON.parse(localStorage.getItem(SESSION_KEY) ?? 'null') as Session | null;
-    return session?.code === code && typeof session.token === 'string' ? { ...session, joined: !!session.joined } : null;
-  } catch {
-    return null;
-  }
+  return loadRooms()[code] ?? null;
 }
 
 export function saveSession(session: Session) {
-  try {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-  } catch {
-    // בלי אחסון, ריענון יחזיר למסך ההצטרפות
-  }
+  saveRooms({ ...loadRooms(), [session.code]: session });
 }
 
-/** שוכח את החדר הזה. חדר אחר ששמור בטלפון לא נמחק */
+/** החדר שלח מצב: מעדכנים מתי נראה לאחרונה. לכל היותר פעם בדקה, כדי לא לכתוב בכל הודעה */
+export function touchSession(code: string, now = Date.now()) {
+  const session = loadSession(code);
+  if (!session?.joined || (session.seenAt !== undefined && now - session.seenAt < 60_000)) return;
+  saveSession({ ...session, seenAt: now });
+}
+
+/** החדר שהטלפון היה בו לאחרונה ועדיין פתוח, אם יש */
+export function loadLatestRoom(): Session | null {
+  return latestRoom(loadRooms(), Date.now());
+}
+
+/** שוכח את החדר הזה. חדרים אחרים ששמורים בטלפון נשארים */
 export function clearSession(code: string) {
-  try {
-    if (loadSession(code)) localStorage.removeItem(SESSION_KEY);
-  } catch {
-    // לא קריטי
-  }
+  const rooms = loadRooms();
+  if (!(code in rooms)) return;
+  delete rooms[code];
+  saveRooms(rooms);
 }
 
 const MODE_KEY = 'imposter:mode';

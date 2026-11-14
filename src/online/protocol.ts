@@ -21,6 +21,8 @@ export type { ScoredVote };
 export const PROTOCOL_VERSION = 9;
 
 export const CODE_LENGTH = 6;
+/** חדר בלי שום שינוי כל כך הרבה זמן נמחק בשרת. הטלפון לא מציע לחזור לחדר שלא ראה מאז */
+export const ROOM_IDLE_MS = 2 * 60 * 60 * 1000;
 /** כמו באורך השם במסך ההגדרות */
 export const MAX_NAME_LENGTH = 16;
 export const MIN_TOKEN_LENGTH = 16;

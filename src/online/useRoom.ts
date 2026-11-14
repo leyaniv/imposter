@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { track } from '../analytics/posthog';
 import { RoomConnection, roomSocketUrl, type ConnectionStatus } from './connection';
 import { PROTOCOL_VERSION, type ClientMessage, type ErrorCode, type RoomState } from './protocol';
-import { clearSession, loadSession, saveSession, type Session } from './session';
+import { clearSession, loadSession, saveSession, touchSession, type Session } from './session';
 
 /** למה הטלפון כבר לא בחדר */
 export type RoomEnd =
@@ -85,6 +85,7 @@ export function useRoom(code: string, name: string) {
         switch (message.type) {
           case 'state':
             setState(message.state);
+            touchSession(code);
             break;
           case 'claimable':
             offered = message.name;
