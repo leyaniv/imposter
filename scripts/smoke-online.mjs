@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
 const BASE = process.argv[2] ?? 'http://localhost:5182';
-const VERSION = 8;
+const VERSION = 9;
 const HOST_AWAY_MS = Number(process.env.HOST_AWAY_MS) || 0;
 const STALE_MS = Number(process.env.STALE_MS) || 0;
 
@@ -72,7 +72,7 @@ async function main() {
 
   // שלושה שחקנים מצטרפים. הראשון הוא המארח
   const tokens = { dana: randomUUID(), yossi: randomUUID(), roni: randomUUID() };
-  const dana = await phone(code);
+  let dana = await phone(code);
   dana.send({ type: 'room:join', name: 'דנה', token: tokens.dana, version: VERSION });
   await dana.next((m) => m.type === 'welcome');
   const first = await dana.stateWhere((s) => s.players.length === 1);
@@ -110,7 +110,7 @@ async function main() {
   // יוסי מתנתק ומסומן כמנותק, ואז חוזר עם הטוקן
   yossi.close();
   await dana.stateWhere((s) => s.players.find((p) => p.name === 'יוסי')?.connected === false);
-  const yossi2 = await phone(code);
+  let yossi2 = await phone(code);
   yossi2.send({ type: 'room:rejoin', token: tokens.yossi, version: VERSION });
   const back = await yossi2.stateWhere(() => true);
   assert.equal(back.players.find((p) => p.id === back.you).name, 'יוסי');
@@ -123,6 +123,60 @@ async function main() {
   yossi2.send({ type: 'presence', away: false });
   await dana.stateWhere((s) => s.players.every((p) => p.connected && !p.away));
   console.log('presence ok');
+
+  // המארחת סוגרת את הדפדפן ונכנסת מדפדפן אחר (בלי הטוקן): חוזרת למקום שלה, ועדיין מארחת
+  dana.close();
+  await roni.stateWhere((s) => s.players.find((p) => p.name === 'דנה')?.connected === false);
+  const danaToken = randomUUID();
+  const dana2 = await phone(code);
+  dana2.send({ type: 'room:join', name: 'דנה', token: danaToken, version: VERSION });
+  const offer = await dana2.next((m) => m.type === 'claimable');
+  assert.deepEqual(offer, { type: 'claimable', name: 'דנה', approval: false }, 'lobby + disconnected: no approval');
+  dana2.send({ type: 'room:claim', name: 'דנה', token: danaToken, version: VERSION });
+  await dana2.next((m) => m.type === 'welcome');
+  const reclaimed = await dana2.stateWhere(() => true);
+  assert.equal(reclaimed.you, 'p1');
+  assert.equal(reclaimed.hostId, 'p1', 'still the host');
+  assert.equal(reclaimed.players.length, 3, 'no extra seat');
+  const oldDana = await phone(code);
+  oldDana.send({ type: 'room:rejoin', token: tokens.dana, version: VERSION });
+  assert.equal((await oldDana.next((m) => m.type === 'error')).code, 'bad_token', 'the old token is gone');
+  oldDana.close();
+  dana = dana2;
+  console.log('claim a disconnected seat ok');
+
+  // הדף של יוסי מוסתר (אולי הדפדפן נסגר והחיבור עוד לא נפל): צריך אישור. רוני דוחה
+  yossi2.send({ type: 'presence', away: true });
+  await dana.stateWhere((s) => s.players.find((p) => p.name === 'יוסי')?.away === true);
+  const yossiToken = randomUUID();
+  const fake = await phone(code);
+  fake.send({ type: 'room:join', name: 'יוסי', token: randomUUID(), version: VERSION });
+  assert.equal((await fake.next((m) => m.type === 'claimable')).approval, true);
+  fake.send({ type: 'room:claim', name: 'יוסי', token: randomUUID(), version: VERSION });
+  await fake.next((m) => m.type === 'claim:waiting');
+  const asked = await roni.stateWhere((s) => s.claims?.length === 1);
+  assert.equal(asked.claims[0].playerId, 'p2');
+  await yossi2.stateWhere((s) => s.players.find((p) => p.id === s.you).away === true);
+  roni.send({ type: 'claim:answer', claimId: asked.claims[0].id, approve: false });
+  assert.equal((await fake.next((m) => m.type === 'error')).code, 'claim_rejected');
+  await fake.closed;
+  await dana.stateWhere((s) => !s.claims);
+  assert.equal(yossi2.ws.readyState, WebSocket.OPEN, 'the real yossi is still in');
+
+  // והפעם דנה מאשרת: הטלפון החדש לוקח את המקום, והישן מוחלף
+  const yossi3 = await phone(code);
+  yossi3.send({ type: 'room:join', name: 'יוסי', token: yossiToken, version: VERSION });
+  await yossi3.next((m) => m.type === 'claimable');
+  yossi3.send({ type: 'room:claim', name: 'יוסי', token: yossiToken, version: VERSION });
+  await yossi3.next((m) => m.type === 'claim:waiting');
+  const askedAgain = await dana.stateWhere((s) => s.claims?.length === 1 && s.claims[0].id !== asked.claims[0].id);
+  dana.send({ type: 'claim:answer', claimId: askedAgain.claims[0].id, approve: true });
+  await yossi3.next((m) => m.type === 'welcome');
+  assert.equal((await yossi3.stateWhere(() => true)).you, 'p2');
+  assert.equal((await yossi2.closed).reason, 'replaced');
+  await roni.stateWhere((s) => !s.claims && s.players.every((p) => p.connected && !p.away));
+  yossi2 = yossi3;
+  console.log('claim with approval ok');
 
   // סבב: כל טלפון מקבל רק את התפקיד שלו. מתחזה אחד, ולכל השאר אותה מילה
   yossi2.send({ type: 'game:start' });

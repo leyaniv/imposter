@@ -10,6 +10,7 @@ import { useWakeLock } from '../hooks/useWakeLock';
 import { he } from '../i18n/he';
 import { playRevealSound, playVoteSound } from '../ui/sound';
 import { vibrate } from '../ui/vibrate';
+import ConfirmDialog from '../components/ConfirmDialog';
 import FreeGuessOnline from './FreeGuessOnline';
 import HostMenu from './HostMenu';
 import LeaveDialog from './LeaveDialog';
@@ -34,6 +35,7 @@ export function entryError(code: ErrorCode): string | undefined {
     case 'name_taken':
     case 'room_not_found':
     case 'bad_token':
+    case 'claim_rejected':
       return he.online.errors[code];
     case 'room_full':
       return he.online.errors.room_full(MAX_PLAYERS);
@@ -154,7 +156,7 @@ function localPart({ categories, imposterCount, imposterNeverStarts, showCategor
  * המארח נשאר מחובר גם כשהוא עובר ל"מקומי", כדי שהאירוח לא יעבור למישהו אחר
  */
 export function RoomView({ code, name, onEnd, mode, onModeChange, local, onStartLocal }: RoomViewProps) {
-  const { state, status, end, send } = useRoom(code, name);
+  const { state, status, end, send, offer, claimSeat } = useRoom(code, name);
   const [askLeave, setAskLeave] = useState(false);
   const [managing, setManaging] = useState(false);
   // באיזה סבב הטלפון הזה כבר דיווח על המילה
@@ -244,6 +246,50 @@ export function RoomView({ code, name, onEnd, mode, onModeChange, local, onStart
   const leaveDialog = askLeave && state && (
     <LeaveDialog state={state} onLeave={leave} onCancel={() => setAskLeave(false)} />
   );
+
+  // מישהו מבקש לחזור למקום של שחקן מטלפון אחר. כל מי שבחדר יכול לאשר, והראשון שעונה קובע
+  const claim = state?.claims?.[0];
+  const claimName = claim && state.players.find((player) => player.id === claim.playerId)?.name;
+  const claimDialog = claim && claimName && (
+    <ConfirmDialog
+      key={claim.id}
+      message={he.online.claim.ask(claimName)}
+      confirmLabel={he.online.claim.approve(claimName)}
+      cancelLabel={he.online.claim.reject}
+      tone="success"
+      onConfirm={() => send({ type: 'claim:answer', claimId: claim.id, approve: true })}
+      onCancel={() => send({ type: 'claim:answer', claimId: claim.id, approve: false })}
+    />
+  );
+
+  /** לא המקום שלי, או שנמאס לחכות: חזרה למסך ההצטרפות כדי לבחור שם אחר */
+  const otherName = () => {
+    clearSession(code);
+    onEnd({ kind: 'error', code: 'name_taken' });
+  };
+
+  if (!state && offer) {
+    if (offer.waiting) {
+      return (
+        <MessageScreen text={he.online.claim.waiting}>
+          <button className="btn btn-ghost" onClick={otherName}>
+            {he.online.claim.cancel}
+          </button>
+        </MessageScreen>
+      );
+    }
+    const text = he.online.claim.text(offer.name) + (offer.approval ? ` ${he.online.claim.approvalNote}` : '');
+    return (
+      <MessageScreen title={he.online.claim.title} text={text}>
+        <button className="btn btn-primary" onClick={claimSeat}>
+          {he.online.claim.back}
+        </button>
+        <button className="btn btn-ghost" onClick={otherName}>
+          {he.online.claim.otherName}
+        </button>
+      </MessageScreen>
+    );
+  }
 
   if (!state) {
     return (
@@ -389,7 +435,7 @@ export function RoomView({ code, name, onEnd, mode, onModeChange, local, onStart
   return (
     <>
       {screen}
-      {leaveDialog}
+      {leaveDialog || claimDialog}
       <p className={`toast${nowHost ? ' toast-on' : ''}`} role="status">
         {nowHost ? he.online.host.nowHost : ''}
       </p>

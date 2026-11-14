@@ -1,8 +1,19 @@
 import { DurableObject } from 'cloudflare:workers';
-import type { ClientMessage, ErrorCode, LeftReason, RoomSettings, ServerMessage } from '../src/online/protocol';
+import {
+  PROTOCOL_VERSION,
+  type ClientMessage,
+  type ErrorCode,
+  type LeftReason,
+  type RoomSettings,
+  type SeatClaim,
+  type ServerMessage,
+} from '../src/online/protocol';
 import {
   HOST_AWAY_MS,
   act,
+  claimSeat,
+  claimableSeat,
+  cleanName,
   cleanupAt,
   createRoom,
   hostTimeout,
@@ -24,6 +35,8 @@ interface Attachment {
   since?: number;
   /** הדף בטלפון מוסתר (לשונית אחרת, אפליקציה אחרת). חיבור חדש מתחיל כגלוי, והטלפון מעדכן */
   away?: boolean;
+  /** הטלפון ביקש לחזור למקום של playerId ומחכה שמישהו בחדר יאשר. token: הטוקן שהמקום יקבל */
+  claim?: SeatClaim & { token: string };
 }
 
 /** קוד סגירה של WebSocket אחרי שהשחקן יצא, הוצא, או שהחדר נמחק */
@@ -88,12 +101,13 @@ export class Room extends DurableObject<Env> {
     }
 
     const { playerId } = ws.deserializeAttachment() as Attachment;
-    if (message.type === 'room:join' || message.type === 'room:rejoin') {
+    if (message.type === 'room:join' || message.type === 'room:rejoin' || message.type === 'room:claim') {
       if (playerId) return send(ws, { type: 'error', code: 'bad_message' });
-      return this.admit(ws, message);
+      return message.type === 'room:claim' ? this.claim(ws, message) : this.admit(ws, message);
     }
     if (!playerId) return send(ws, { type: 'error', code: 'not_joined' });
     if (message.type === 'presence') return this.setAway(ws, message.away);
+    if (message.type === 'claim:answer') return this.answerClaim(ws, playerId, message.claimId, message.approve);
 
     const result = act(this.room, playerId, message, Date.now(), { connected: this.connectedIds() });
     if ('error' in result) return this.reject(ws, playerId, result.error);
@@ -195,7 +209,12 @@ export class Room extends DurableObject<Env> {
     let playerId: string;
     if (message.type === 'room:join') {
       const result = join(room, message.name, message.version, message.token, Date.now());
-      if ('error' in result) return send(ws, { type: 'error', code: result.error });
+      if ('error' in result) {
+        // השם של שחקן שלא מחובר: אולי זה הוא, מטלפון אחר (דפדפן אחר, או שהאחסון נמחק). שואלים אותו
+        const seat = result.error === 'name_taken' && this.claimable(message.name);
+        if (seat) return send(ws, { type: 'claimable', name: seat.name, approval: seat.approval });
+        return send(ws, { type: 'error', code: result.error });
+      }
       playerId = result.playerId;
       if (result.room !== room) await this.save(result.room);
       send(ws, { type: 'welcome' });
@@ -204,16 +223,79 @@ export class Room extends DurableObject<Env> {
       if ('error' in result) return send(ws, { type: 'error', code: result.error });
       playerId = result.playerId;
     }
+    await this.enter(ws, playerId);
+  }
 
+  /** החיבור הזה הוא עכשיו playerId: מחליף חיבורים קודמים שלו, ומעדכן את כולם */
+  private async enter(ws: WebSocket, playerId: string) {
     // אותו שחקן מחובר כבר מטלפון אחר (או מלשונית ישנה): החיבור החדש מחליף אותו
     for (const other of this.sockets(playerId)) other.close(CLOSE_LEFT, 'replaced');
-    ws.serializeAttachment({ ...(ws.deserializeAttachment() as Attachment), playerId } satisfies Attachment);
+    ws.serializeAttachment({
+      ...(ws.deserializeAttachment() as Attachment),
+      playerId,
+      claim: undefined,
+    } satisfies Attachment);
 
     // המארח חזר, או שעכשיו יש למי להעביר אירוח ממארח שנעלם מזמן
     const connected = this.connectedIds();
     const next = hostTimeout(trackHost(this.room!, connected, Date.now()), connected, Date.now(), this.hostAwayMs);
     if (next !== this.room) await this.save(next);
     this.broadcast();
+  }
+
+  /** מקום שאפשר לחזור אליו עם השם הזה, לפי מי שמחובר עכשיו */
+  private claimable(name: string) {
+    return claimableSeat(this.room!, name, this.connectedIds(), this.connectedIds(undefined, true));
+  }
+
+  /** "זה המקום שלי": מיד, או אחרי שמישהו בחדר יאשר */
+  private async claim(ws: WebSocket, message: Extract<ClientMessage, { type: 'room:claim' }>) {
+    if (message.version !== PROTOCOL_VERSION) return send(ws, { type: 'error', code: 'outdated' });
+    const seat = this.claimable(message.name);
+    // בינתיים השחקן חזר בעצמו, או יצא מהחדר
+    if (!seat) return send(ws, { type: 'error', code: this.hasName(message.name) ? 'name_taken' : 'bad_token' });
+    if (!seat.approval) return this.takeSeat(ws, seat.playerId, message.token);
+
+    const claim = { id: crypto.randomUUID(), playerId: seat.playerId, token: message.token };
+    ws.serializeAttachment({ ...(ws.deserializeAttachment() as Attachment), claim } satisfies Attachment);
+    send(ws, { type: 'claim:waiting' });
+    this.broadcast();
+  }
+
+  /** מישהו בחדר אישר או דחה בקשה לחזור למקום. הראשון שעונה קובע */
+  private async answerClaim(ws: WebSocket, playerId: string, claimId: string, approve: boolean) {
+    const claimer = this.ctx
+      .getWebSockets()
+      .find((other) => (other.deserializeAttachment() as Attachment).claim?.id === claimId);
+    // מישהו אחר כבר ענה, או שהטלפון המבקש התנתק: שולחים מצב עדכני בלי הבקשה
+    if (!claimer) return this.broadcast();
+    const claim = (claimer.deserializeAttachment() as Attachment).claim!;
+    if (claim.playerId === playerId) return this.reject(ws, playerId, 'not_allowed');
+
+    const name = this.room!.players.find((player) => player.id === claim.playerId)?.name;
+    const seat = name ? this.claimable(name) : null;
+    if (approve && seat?.playerId === claim.playerId) return this.takeSeat(claimer, claim.playerId, claim.token);
+
+    // נדחה, או שבינתיים השחקן חזר בעצמו (או יצא)
+    const code: ErrorCode = !approve ? 'claim_rejected' : name ? 'name_taken' : 'bad_token';
+    send(claimer, { type: 'error', code });
+    claimer.serializeAttachment({ ...(claimer.deserializeAttachment() as Attachment), claim: undefined } satisfies Attachment);
+    claimer.close(CLOSE_LEFT, code);
+    this.broadcast(claimer);
+  }
+
+  /** הטלפון החדש מקבל את המקום עם הטוקן שלו. הטוקן הישן כבר לא תקף */
+  private async takeSeat(ws: WebSocket, playerId: string, token: string) {
+    const next = claimSeat(this.room!, playerId, token, Date.now());
+    if ('error' in next) return send(ws, { type: 'error', code: next.error });
+    await this.save(next);
+    send(ws, { type: 'welcome' });
+    await this.enter(ws, playerId);
+  }
+
+  private hasName(name: string): boolean {
+    const clean = cleanName(name).toLowerCase();
+    return this.room!.players.some((player) => player.name.toLowerCase() === clean);
   }
 
   /** מנתק את כולם ומוחק את החדר: אחרי זמן בלי פעילות, או כשהמארח סגר אותו */
@@ -230,7 +312,7 @@ export class Room extends DurableObject<Env> {
   private reject(ws: WebSocket, playerId: string, code: ErrorCode) {
     send(ws, { type: 'error', code });
     const away = this.connectedIds(undefined, true);
-    send(ws, { type: 'state', state: view(this.room!, playerId, this.connectedIds(), away) });
+    send(ws, { type: 'state', state: view(this.room!, playerId, this.connectedIds(), away, this.claims()) });
   }
 
   private disconnect(playerId: string, reason: LeftReason) {
@@ -246,11 +328,23 @@ export class Room extends DurableObject<Env> {
     if (!this.room) return;
     const connected = this.connectedIds(closing);
     const away = this.connectedIds(closing, true);
+    const claims = this.claims(closing);
     for (const ws of this.ctx.getWebSockets()) {
       if (ws === closing) continue;
       const { playerId } = ws.deserializeAttachment() as Attachment;
-      if (playerId) send(ws, { type: 'state', state: view(this.room, playerId, connected, away) });
+      if (playerId) send(ws, { type: 'state', state: view(this.room, playerId, connected, away, claims) });
     }
+  }
+
+  /** בקשות פתוחות לחזור למקום של מישהו, מטלפונים שעדיין מחוברים */
+  private claims(closing?: WebSocket): SeatClaim[] {
+    const claims: SeatClaim[] = [];
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === closing || ws.readyState !== WebSocket.OPEN) continue;
+      const { claim } = ws.deserializeAttachment() as Attachment;
+      if (claim) claims.push({ id: claim.id, playerId: claim.playerId });
+    }
+    return claims;
   }
 
   /** מי מחובר. onlyAway: רק מי שהדף שלו מוסתר */

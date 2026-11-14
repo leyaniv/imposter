@@ -32,6 +32,7 @@ import {
   type RoomSettings,
   type RoomState,
   type RoundState,
+  type SeatClaim,
   type TurnState,
   type VoteResult,
   type WinReason,
@@ -207,6 +208,37 @@ export function join(
 }
 
 /** חזרה אחרי ריענון או ניתוק. לא משנה את החדר */
+/**
+ * מקום שאפשר לחזור אליו מטלפון אחר: שחקן עם השם הזה שלא מחובר, או שהדף שלו מוסתר
+ * (טלפון שהדפדפן שלו נסגר נשאר "מחובר" עד שהשרת מבין שהחיבור מת).
+ * approval: צריך שמישהו בחדר יאשר. בלובי עם מקום מנותק אין מה להסתיר, אז לא צריך.
+ * באמצע סבב צריך, אחרת מתחזה יכול "לחזור" למקום של מישהו ולראות את המילה שלו.
+ * גם מקום שהדף שלו רק מוסתר צריך אישור, כי אולי השחקן עדיין שם ורק עבר לאפליקציה אחרת
+ */
+export function claimableSeat(
+  room: Room,
+  name: string,
+  connected: ReadonlySet<string>,
+  away: ReadonlySet<string>,
+): { playerId: string; name: string; approval: boolean } | null {
+  const player = room.players.find((p) => sameName(p.name, cleanName(name)));
+  if (!player) return null;
+  const live = connected.has(player.id);
+  if (live && !away.has(player.id)) return null;
+  return { playerId: player.id, name: player.name, approval: room.phase !== 'lobby' || live };
+}
+
+/** הטלפון החדש לוקח את המקום: הטוקן הישן כבר לא תקף. המזהה, האירוח והניקוד נשארים */
+export function claimSeat(room: Room, playerId: string, token: string, now: number): Room | { error: ErrorCode } {
+  if (room.players.some((player) => player.token === token)) return { error: 'bad_message' };
+  if (!room.players.some((player) => player.id === playerId)) return { error: 'bad_token' };
+  return {
+    ...room,
+    players: room.players.map((player) => (player.id === playerId ? { ...player, token } : player)),
+    lastActivity: now,
+  };
+}
+
 export function rejoin(room: Room, token: string, version: number): { playerId: string } | { error: ErrorCode } {
   if (version !== PROTOCOL_VERSION) return { error: 'outdated' };
   const player = room.players.find((p) => p.token === token);
@@ -583,8 +615,11 @@ export function act(room: Room, playerId: string, message: ClientMessage, now: n
     case 'presence':
       return { room };
 
+    // ההצטרפות והחזרה למקום מטופלות ב-room.ts, כי הן תלויות בחיבורים
     case 'room:join':
     case 'room:rejoin':
+    case 'room:claim':
+    case 'claim:answer':
       return { error: 'bad_message' };
   }
 }
@@ -644,13 +679,14 @@ function roundView(room: Room, playerId: string, connected: ReadonlySet<string>)
 
 /**
  * מה שהטלפון של playerId רואה. בלי טוקנים, ובלי סודות של הסבב לפני הסוף.
- * awayIds: מי מחובר אבל הדף שלו מוסתר
+ * awayIds: מי מחובר אבל הדף שלו מוסתר. claims: טלפונים שמבקשים לחזור למקום של מישהו
  */
 export function view(
   room: Room,
   playerId: string,
   connectedIds: ReadonlySet<string>,
   awayIds: ReadonlySet<string> = new Set(),
+  claims: readonly SeatClaim[] = [],
 ): RoomState {
   const state: RoomState = {
     code: room.code,
@@ -666,6 +702,9 @@ export function view(
   };
   const round = roundView(room, playerId, connectedIds);
   if (round) state.round = round;
+  // השחקן לא מאשר בקשה על המקום של עצמו
+  const others = claims.filter((claim) => claim.playerId !== playerId && room.players.some((p) => p.id === claim.playerId));
+  if (others.length) state.claims = others;
   return state;
 }
 
@@ -731,6 +770,14 @@ export function parseMessage(raw: string): ClientMessage | null {
     case 'room:rejoin':
       return isToken(msg.token) && typeof msg.version === 'number'
         ? { type: 'room:rejoin', token: msg.token, version: msg.version }
+        : null;
+    case 'room:claim':
+      return isString(msg.name) && isToken(msg.token) && typeof msg.version === 'number'
+        ? { type: 'room:claim', name: msg.name, token: msg.token, version: msg.version }
+        : null;
+    case 'claim:answer':
+      return isString(msg.claimId, 64) && typeof msg.approve === 'boolean'
+        ? { type: 'claim:answer', claimId: msg.claimId, approve: msg.approve }
         : null;
     case 'room:leave':
       return isString(msg.newHostId) ? { type: 'room:leave', newHostId: msg.newHostId } : { type: 'room:leave' };

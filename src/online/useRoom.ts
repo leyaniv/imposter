@@ -21,7 +21,25 @@ function newToken(): string {
 }
 
 /** שגיאות שאחריהן אין טעם להישאר מחוברים */
-const FATAL: readonly ErrorCode[] = ['outdated', 'room_not_found', 'room_full', 'name_required', 'name_taken', 'bad_token'];
+const FATAL: readonly ErrorCode[] = [
+  'outdated',
+  'room_not_found',
+  'room_full',
+  'name_required',
+  'name_taken',
+  'bad_token',
+  'claim_rejected',
+];
+
+/**
+ * השם שנבחר שייך לשחקן שלא מחובר: אולי זה המקום של הטלפון הזה, מדפדפן אחר.
+ * approval: מישהו בחדר יצטרך לאשר. waiting: ביקשנו, ומחכים לאישור
+ */
+export interface SeatOffer {
+  name: string;
+  approval: boolean;
+  waiting: boolean;
+}
 
 /**
  * החיבור לחדר: מצטרף (או חוזר עם הטוקן ששמור בטלפון), ומחזיר את המצב האחרון שהשרת שלח.
@@ -31,12 +49,16 @@ export function useRoom(code: string, name: string) {
   const [state, setState] = useState<RoomState | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [end, setEnd] = useState<RoomEnd | null>(null);
+  const [offer, setOffer] = useState<SeatOffer | null>(null);
   const connection = useRef<RoomConnection | null>(null);
+  const claimRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     // גם אם localStorage חסום, הטוקן נשמר בזיכרון לחיבורים מחדש
     let session: Session | null = loadSession(code);
     let finished = false;
+    /** ביקשנו לחזור למקום. אם החיבור נפל בזמן ההמתנה, מבקשים שוב אחרי שהשרת מציע את המקום מחדש */
+    let claiming = false;
 
     const finish = (result: RoomEnd) => {
       if (finished) return;
@@ -64,7 +86,17 @@ export function useRoom(code: string, name: string) {
           case 'state':
             setState(message.state);
             break;
+          case 'claimable':
+            offered = message.name;
+            setOffer({ name: message.name, approval: message.approval, waiting: claiming });
+            if (claiming) claim(message.name);
+            break;
+          case 'claim:waiting':
+            setOffer((current) => current && { ...current, waiting: true });
+            break;
           case 'welcome':
+            claiming = false;
+            setOffer(null);
             if (session && !session.joined) {
               session = { ...session, joined: true };
               saveSession(session);
@@ -87,6 +119,15 @@ export function useRoom(code: string, name: string) {
     });
 
     // כולם רואים מי לא במסך (לשונית אחרת, אפליקציה אחרת), כדי לדעת למי לקרוא
+    /** "זה המקום שלי": עם הטוקן החדש של הטלפון הזה */
+    const claim = (seatName: string) => {
+      if (!session) return;
+      claiming = true;
+      conn.send({ type: 'room:claim', name: seatName, token: session.token, version: PROTOCOL_VERSION });
+    };
+    let offered = '';
+    claimRef.current = () => offered && claim(offered);
+
     const onVisibility = () => conn.send({ type: 'presence', away: document.hidden });
     document.addEventListener('visibilitychange', onVisibility);
 
@@ -101,5 +142,8 @@ export function useRoom(code: string, name: string) {
 
   const send = (message: ClientMessage) => connection.current?.send(message);
 
-  return { state, status, end, send };
+  /** "זה המקום שלי" על המקום שהשרת הציע */
+  const claimSeat = () => claimRef.current();
+
+  return { state, status, end, send, offer, claimSeat };
 }

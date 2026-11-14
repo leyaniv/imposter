@@ -15,8 +15,9 @@ export type { ScoredVote };
  * 6: ניקוד לפי מי שצדק בהצבעות, ומי שפתח הצבעה לא יכול לשנות את הקול שלו.
  * 7: התור הנוכחי, שבעל התור או המארח מקדמים.
  * 8: מי לא במסך (הדף מוסתר), כדי שכולם יראו למי לקרוא.
+ * 9: חזרה למקום של שחקן מנותק מטלפון אחר (claim), עם אישור של מישהו בחדר כשצריך.
  */
-export const PROTOCOL_VERSION = 8;
+export const PROTOCOL_VERSION = 9;
 
 export const CODE_LENGTH = 6;
 /** כמו באורך השם במסך ההגדרות */
@@ -51,6 +52,13 @@ export type ClientMessage =
    */
   | { type: 'room:join'; name: string; token: string; version: number }
   | { type: 'room:rejoin'; token: string; version: number }
+  /**
+   * "זה המקום שלי": אחרי שהשרת ענה claimable, הטלפון לוקח את המקום של השחקן המנותק עם השם הזה,
+   * עם טוקן חדש. בלובי עם מקום מנותק זה מיידי. אחרת מחכים שמישהו בחדר יאשר (claim:answer)
+   */
+  | { type: 'room:claim'; name: string; token: string; version: number }
+  /** תשובה של שחקן בחדר לבקשה לחזור למקום של מישהו (RoomState.claims) */
+  | { type: 'claim:answer'; claimId: string; approve: boolean }
   /** newHostId: רק כשהמארח יוצא, מי יחליף אותו */
   | { type: 'room:leave'; newHostId?: string }
   | { type: 'host:transfer'; playerId: string }
@@ -89,6 +97,8 @@ export type ErrorCode =
   | 'room_full'
   | 'name_required'
   | 'name_taken'
+  /** מישהו בחדר לא אישר את החזרה למקום */
+  | 'claim_rejected'
   /** הטוקן לא מוכר: השחקן יצא, הוצא, או שהחדר נמחק */
   | 'bad_token'
   | 'not_joined'
@@ -217,6 +227,14 @@ export interface RoomState {
   round?: RoundState;
   /** ניקוד מצטבר בחדר: playerId -> נקודות */
   scores: Record<string, number>;
+  /** בקשות של טלפון אחר לחזור למקום של שחקן, שמחכות לאישור. השחקן עצמו לא רואה בקשה על המקום שלו */
+  claims?: SeatClaim[];
+}
+
+/** טלפון שמבקש לחזור למקום של playerId */
+export interface SeatClaim {
+  id: string;
+  playerId: string;
 }
 
 /** closed: החדר נמחק אחרי זמן בלי פעילות. hostClosed: המארח סגר אותו */
@@ -226,6 +244,12 @@ export type ServerMessage =
   | { type: 'state'; state: RoomState }
   /** ההצטרפות הצליחה. מעכשיו חוזרים עם room:rejoin */
   | { type: 'welcome' }
+  /**
+   * תשובה ל-room:join עם שם של שחקן שלא מחובר (או שהדף שלו מוסתר): אולי זה הוא, מטלפון אחר.
+   * approval: מישהו בחדר יצטרך לאשר. waiting: הבקשה נשלחה ומחכים לאישור
+   */
+  | { type: 'claimable'; name: string; approval: boolean }
+  | { type: 'claim:waiting' }
   | { type: 'error'; code: ErrorCode }
   /** הטלפון כבר לא בחדר. החיבור נסגר מיד אחרי ההודעה */
   | { type: 'left'; reason: LeftReason };
