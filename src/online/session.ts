@@ -9,6 +9,10 @@ const NAME_KEY = 'imposter:name';
 const ROOMS_KEY = 'imposter:rooms';
 /** גרסה קודמת: חדר אחד בלבד. נקרא פעם אחת ועובר ל-ROOMS_KEY */
 const LEGACY_SESSION_KEY = 'imposter:online';
+/** החדר שיצאו ממנו לאחרונה, בשביל "הצטרפות שוב" במסך הראשי */
+const LEFT_KEY = 'imposter:leftRoom';
+/** כמה זמן אחרי יציאה מחדר עוד מציעים להצטרף אליו שוב */
+export const REJOIN_MS = 10 * 60 * 1000;
 
 export interface Session {
   code: string;
@@ -103,7 +107,10 @@ export function loadSession(code: string): Session | null {
 }
 
 export function saveSession(session: Session) {
-  saveRooms({ ...loadRooms(), [session.code]: session });
+  const rooms = loadRooms();
+  // נכנסים לחדר (אותו חדר שוב, או אחר): כבר לא צריך להציע לחזור לחדר שיצאו ממנו
+  if (!(session.code in rooms)) clearLeftRoom();
+  saveRooms({ ...rooms, [session.code]: session });
 }
 
 /** החדר שלח מצב: מעדכנים מתי נראה לאחרונה. לכל היותר פעם בדקה, כדי לא לכתוב בכל הודעה */
@@ -124,6 +131,40 @@ export function clearSession(code: string) {
   if (!(code in rooms)) return;
   delete rooms[code];
   saveRooms(rooms);
+}
+
+export interface LeftRoom {
+  code: string;
+  leftAt: number;
+}
+
+/** החדר שיצאו ממנו, אם זה היה לפני פחות מ-REJOIN_MS */
+export function parseLeftRoom(raw: unknown, now: number): LeftRoom | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const { code, leftAt } = raw as Record<string, unknown>;
+  if (typeof code !== 'string' || typeof leftAt !== 'number') return null;
+  return now >= leftAt && now - leftAt < REJOIN_MS ? { code, leftAt } : null;
+}
+
+export function loadLeftRoom(now = Date.now()): LeftRoom | null {
+  return parseLeftRoom(readJson(LEFT_KEY), now);
+}
+
+/** יצאו מהחדר בעצמם (לא הוצאו, והחדר לא נסגר): אפשר להתחרט ולהצטרף שוב בזמן הקרוב */
+export function saveLeftRoom(code: string, now = Date.now()) {
+  try {
+    localStorage.setItem(LEFT_KEY, JSON.stringify({ code, leftAt: now } satisfies LeftRoom));
+  } catch {
+    // בלי אחסון אין כפתור. אפשר עדיין להצטרף עם הקוד
+  }
+}
+
+export function clearLeftRoom() {
+  try {
+    localStorage.removeItem(LEFT_KEY);
+  } catch {
+    // אין מה למחוק
+  }
 }
 
 const MODE_KEY = 'imposter:mode';

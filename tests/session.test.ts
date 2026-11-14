@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ROOM_IDLE_MS } from '../src/online/protocol';
-import { latestRoom, parseRooms, type Session } from '../src/online/session';
+import { REJOIN_MS, latestRoom, parseLeftRoom, parseRooms, type Session } from '../src/online/session';
 
 const NOW = 10_000_000_000;
 const room = (code: string, seenAt?: number, joined = true): Session => ({
@@ -45,5 +45,21 @@ describe('saved rooms', () => {
     expect(latestRoom(rooms, NOW)?.code).toBe('222222');
     expect(latestRoom({}, NOW)).toBeNull();
     expect(latestRoom({ c: room('333333', undefined, false) }, NOW)).toBeNull();
+  });
+});
+
+describe('a room the phone just left', () => {
+  it('offers to join again for a few minutes after leaving', () => {
+    expect(parseLeftRoom({ code: '555555', leftAt: NOW - 60_000 }, NOW)).toEqual({ code: '555555', leftAt: NOW - 60_000 });
+  });
+
+  it('stops offering it after REJOIN_MS', () => {
+    expect(parseLeftRoom({ code: '555555', leftAt: NOW - REJOIN_MS }, NOW)).toBeNull();
+  });
+
+  it('ignores broken or future values', () => {
+    expect(parseLeftRoom(null, NOW)).toBeNull();
+    expect(parseLeftRoom({ code: 555555, leftAt: NOW }, NOW)).toBeNull();
+    expect(parseLeftRoom({ code: '555555', leftAt: NOW + 60_000 }, NOW)).toBeNull();
   });
 });

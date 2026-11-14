@@ -25,7 +25,7 @@ import RevealOnline from './RevealOnline';
 import RoomBar from './RoomBar';
 import RoundEndOnline from './RoundEndOnline';
 import VoteOnline from './VoteOnline';
-import { clearSession, saveSecretVote } from './session';
+import { clearSession, saveLeftRoom, saveSecretVote } from './session';
 import { useRoom, type RoomEnd } from './useRoom';
 
 
@@ -180,6 +180,8 @@ export function RoomView({ code, name, onEnd, mode, onModeChange, local, onStart
     const alone = isHost && state!.players.length === 1;
     send(alone ? { type: 'room:close' } : newHostId ? { type: 'room:leave', newHostId } : { type: 'room:leave' });
     clearSession(code);
+    // מארח שסגר את החדר לא יכול לחזור אליו. כל השאר יכולים להתחרט ולהצטרף שוב
+    if (!alone) saveLeftRoom(code);
     onEnd({ kind: 'left' });
   };
 

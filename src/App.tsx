@@ -21,6 +21,7 @@ import { RoomView, entryError } from './online/RoomView';
 import { isRoomCode } from './online/protocol';
 import {
   loadLatestRoom,
+  loadLeftRoom,
   loadMode,
   loadName,
   loadSecretVote,
@@ -235,6 +236,9 @@ export default function App() {
 
   // חדר שהטלפון לא יצא ממנו, למשל אחרי שהדפדפן נסגר. נקרא מחדש בכל ציור, כי יציאה מחדר מוחקת אותו
   const openRoom = phase === 'home' ? loadLatestRoom() : null;
+  // חדר שיצאו ממנו בעצמם בדקות האחרונות (אם זה לא אותו חדר שעוד פתוח בטלפון)
+  const leftRoom = phase === 'home' ? loadLeftRoom() : null;
+  const rejoinCode = leftRoom && leftRoom.code !== openRoom?.code ? leftRoom.code : undefined;
 
   let screen: ReactNode;
   switch (phase) {
@@ -246,6 +250,8 @@ export default function App() {
           onJoin={() => setOnline({ screen: 'join', code: '' })}
           openRoom={openRoom?.code}
           onBackToRoom={() => openRoom && setOnline({ screen: 'room', code: openRoom.code, name: loadName() })}
+          leftRoom={rejoinCode}
+          onRejoin={() => rejoinCode && setOnline({ screen: 'room', code: rejoinCode, name: loadName() })}
           onScores={() => dispatch({ type: 'openScores' })}
           onRules={() => dispatch({ type: 'openRules' })}
           onAbout={() => dispatch({ type: 'openAbout' })}

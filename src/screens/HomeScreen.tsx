@@ -13,12 +13,26 @@ interface Props {
   /** הקוד של חדר שהטלפון עדיין בו (לא יצא ממנו), אם יש */
   openRoom?: string;
   onBackToRoom: () => void;
+  /** הקוד של חדר שיצאו ממנו לפני רגע, אם יש */
+  leftRoom?: string;
+  onRejoin: () => void;
   onScores: () => void;
   onRules: () => void;
   onAbout: () => void;
 }
 
-export default function HomeScreen({ showScores, onNewGame, onJoin, openRoom, onBackToRoom, onScores, onRules, onAbout }: Props) {
+export default function HomeScreen({
+  showScores,
+  onNewGame,
+  onJoin,
+  openRoom,
+  onBackToRoom,
+  leftRoom,
+  onRejoin,
+  onScores,
+  onRules,
+  onAbout,
+}: Props) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -70,6 +84,12 @@ export default function HomeScreen({ showScores, onNewGame, onJoin, openRoom, on
         <button className="btn btn-tinted" onClick={onJoin}>
           {he.home.join}
         </button>
+        {/* יצאו מחדר לפני רגע: אפשרות להתחרט, בלי לדחוק את "משחק חדש" מהמקום הראשון */}
+        {leftRoom && (
+          <button className="btn btn-tinted" onClick={onRejoin}>
+            {he.home.rejoin(formatCode(leftRoom))}
+          </button>
+        )}
         {showScores && (
           <button className="btn btn-secondary" onClick={onScores}>
             {he.home.scores}
