@@ -4,7 +4,7 @@ import { useBackGuard } from '../hooks/useBackGuard';
 import SettingsSheet from './SettingsSheet';
 
 /** מאיפה פתחו את ההגדרות, לטלמטריה */
-export type SettingsFrom = 'home' | 'game';
+export type SettingsFrom = 'home' | 'setup' | 'game';
 
 const OpenSettings = createContext<((from: SettingsFrom) => void) | null>(null);
 

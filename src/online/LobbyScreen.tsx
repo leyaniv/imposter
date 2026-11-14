@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Scoreboard from '../components/Scoreboard';
 import { CAUGHT_IMPOSTER_POINTS, IMPOSTER_POINTS } from '../game/rules';
-import StickyActions from '../components/StickyActions';
+import TopBar from '../components/TopBar';
 import { maxImposters } from '../game/setup';
 import { he } from '../i18n/he';
 import { roomUrl, shareRoom } from '../ui/share';
@@ -52,6 +52,7 @@ export default function LobbyScreen({ state, status, onAskLeave }: Props) {
 
   return (
     <main className="screen">
+      <TopBar onExit={onAskLeave} exitLabel={he.online.lobby.leave} settingsFrom="setup" />
       <div className="screen-body">
         <ConnectionNotice status={status} />
 
@@ -61,13 +62,13 @@ export default function LobbyScreen({ state, status, onAskLeave }: Props) {
             {formatCode(state.code)}
           </p>
           <p className="help">{he.online.lobby.waitingHost}</p>
-          {showQr && <RoomQr url={roomUrl(state.code)} label={he.online.lobby.qrLabel(formatCode(state.code))} />}
           <button className="btn btn-secondary" onClick={share}>
             {he.online.lobby.share}
           </button>
           <button className="link-btn" onClick={() => setShowQr(!showQr)}>
             {showQr ? he.online.lobby.hideQr : he.online.lobby.showQr}
           </button>
+          {showQr && <RoomQr url={roomUrl(state.code)} label={he.online.lobby.qrLabel(formatCode(state.code))} />}
         </div>
 
         <section className="field">
@@ -83,12 +84,6 @@ export default function LobbyScreen({ state, status, onAskLeave }: Props) {
           <p className="help">{settingsSummary(state.settings, state.players.length)}</p>
         </section>
       </div>
-
-      <StickyActions>
-        <button className="btn btn-ghost" onClick={onAskLeave}>
-          {he.online.lobby.leave}
-        </button>
-      </StickyActions>
 
       <p className={`toast${copied ? ' toast-on' : ''}`} role="status">
         {copied ? he.online.lobby.linkCopied : ''}

@@ -289,6 +289,7 @@ export default function App() {
           canStart={mode === 'local'}
           onStart={startRound}
           onExit={() => dispatch({ type: 'goHome' })}
+          exitLabel={he.newGame.exit}
         >
           {mode === 'local' ? (
             <LocalSetupFields local={local} />

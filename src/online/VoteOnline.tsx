@@ -106,12 +106,12 @@ export default function VoteOnline({ state, round, vote, status, onCast, onCance
             </div>
           )}
           {canClose && (
-            <button className="btn btn-secondary" onClick={() => setConfirmClose(true)}>
+            <button className="btn btn-tinted" onClick={() => setConfirmClose(true)}>
               {he.online.vote.close}
             </button>
           )}
           {isStarter && (
-            <button className="btn btn-ghost" onClick={onCancel}>
+            <button className="btn btn-ghost btn-ghost-accent" onClick={onCancel}>
               {he.online.vote.cancel}
             </button>
           )}

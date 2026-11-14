@@ -86,13 +86,13 @@ export default function HostSetup({
         <p className="room-code" dir="ltr">
           {formatCode(state.code)}
         </p>
-        {showQr && <RoomQr url={roomUrl(state.code)} label={he.online.lobby.qrLabel(formatCode(state.code))} />}
         <button className="btn btn-secondary" onClick={share}>
           {he.online.lobby.share}
         </button>
         <button className="link-btn" onClick={() => setShowQr(!showQr)}>
           {showQr ? he.online.lobby.hideQr : he.online.lobby.showQr}
         </button>
+        {showQr && <RoomQr url={roomUrl(state.code)} label={he.online.lobby.qrLabel(formatCode(state.code))} />}
       </div>
 
       <section className="field">
@@ -128,6 +128,7 @@ export default function HostSetup({
       canStart={mode === 'local' || enough}
       onStart={start}
       onExit={onAskLeave}
+      exitLabel={he.online.lobby.leave}
       overlay={
         <>
           <p className={`toast${copied ? ' toast-on' : ''}`} role="status">

@@ -1,6 +1,10 @@
 import { useState, type FormEvent } from 'react';
+import StickyActions from '../components/StickyActions';
+import TopBar from '../components/TopBar';
 import { he } from '../i18n/he';
 import { CODE_LENGTH, MAX_NAME_LENGTH, formatCode, isRoomCode } from './protocol';
+
+const FORM_ID = 'join-room';
 
 interface Props {
   /** קוד מהקישור (?room=). ריק = מקלידים קוד */
@@ -16,6 +20,7 @@ interface Props {
 export default function EntryScreen({ code: linkCode, name: savedName, error, onJoin, onClearCode, onBack }: Props) {
   const [name, setName] = useState(savedName);
   const [code, setCode] = useState('');
+  const [codeFocused, setCodeFocused] = useState(false);
   const hasName = name.trim().length > 0;
   const fromLink = isRoomCode(linkCode);
   const target = fromLink ? linkCode : code;
@@ -27,11 +32,15 @@ export default function EntryScreen({ code: linkCode, name: savedName, error, on
 
   return (
     <main className="screen">
-      <form className="screen-body" onSubmit={join}>
-        <h1 className="heading">{fromLink ? he.online.joinRoom(formatCode(linkCode)) : he.home.join}</h1>
+      {/* כמו "משחק חדש": הכותרת, ההגדרות וה-X בשורה העליונה, וכפתור הפעולה בתחתית */}
+      <TopBar onExit={onBack} exitLabel={he.newGame.exit} settingsFrom="setup" className="top-bar-titled">
+        <h1 className="heading">{he.home.join}</h1>
+      </TopBar>
 
-        <label className="field">
-          <span className="label">{he.online.name}</span>
+      <form id={FORM_ID} className="screen-body" onSubmit={join}>
+
+        <label className="field-inline">
+          <span className="label">{he.newGame.yourName}</span>
           <input
             className="input"
             value={name}
@@ -44,20 +53,44 @@ export default function EntryScreen({ code: linkCode, name: savedName, error, on
           />
         </label>
 
-        {!fromLink && (
+        {/* מקישור: הקוד כבר ידוע, אז מראים אותו בשורה משלו (בכותרת הוא לא נכנס ליד הכפתורים) */}
+        {fromLink ? (
+          <div className="field-inline">
+            <span className="label">{he.online.code}</span>
+            <span className="room-code-inline" dir="ltr">
+              {formatCode(linkCode)}
+            </span>
+            <button className="link-btn link-muted link-end" type="button" onClick={onClearCode}>
+              {he.online.otherRoom}
+            </button>
+          </div>
+        ) : (
           <label className="field">
             <span className="label">{he.online.code}</span>
-            <input
-              className="input code-input"
-              value={code}
-              placeholder={he.online.codePlaceholder}
-              inputMode="numeric"
-              autoComplete="off"
-              enterKeyHint="go"
-              maxLength={CODE_LENGTH}
-              autoFocus={!!savedName}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-            />
+            {/* שדה אחד שקוף מעל שש קופסאות: הקלדה, מחיקה והדבקה עובדים כמו בשדה רגיל, בלי לקפוץ בין שדות */}
+            <span className="code-cells">
+              <input
+                className="code-cells-input"
+                value={code}
+                inputMode="numeric"
+                autoComplete="off"
+                enterKeyHint="go"
+                maxLength={CODE_LENGTH}
+                autoFocus={!!savedName}
+                onFocus={() => setCodeFocused(true)}
+                onBlur={() => setCodeFocused(false)}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, CODE_LENGTH))}
+              />
+              {Array.from({ length: CODE_LENGTH }, (_, i) => (
+                <span
+                  key={i}
+                  aria-hidden="true"
+                  className={`code-cell${codeFocused && i === Math.min(code.length, CODE_LENGTH - 1) ? ' code-cell-active' : ''}`}
+                >
+                  {code[i] ?? ''}
+                </span>
+              ))}
+            </span>
           </label>
         )}
 
@@ -67,23 +100,15 @@ export default function EntryScreen({ code: linkCode, name: savedName, error, on
           </p>
         )}
 
-        <div className="screen-actions">
-          <button className="btn btn-primary" type="submit" disabled={!hasName || !isRoomCode(target)}>
-            {he.online.join}
-          </button>
-          {fromLink && (
-            <button className="link-btn link-muted" type="button" onClick={onClearCode}>
-              {he.online.otherRoom}
-            </button>
-          )}
-        </div>
       </form>
 
-      <div className="screen-actions">
-        <button className="btn btn-ghost" onClick={onBack}>
-          {he.online.back}
+      {/* כשמקלידים שם או קוד, הכפתור עולה מעל המקלדת ולא נשאר מתחתיה */}
+      <StickyActions aboveKeyboard>
+        {/* מחוץ לטופס, ומחובר אליו דרך form, כדי שיישב בתחתית */}
+        <button className="btn btn-primary" type="submit" form={FORM_ID} disabled={!hasName || !isRoomCode(target)}>
+          {he.online.join}
         </button>
-      </div>
+      </StickyActions>
     </main>
   );
 }

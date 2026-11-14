@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import ModeToggle, { type GameMode } from '../components/ModeToggle';
 import StickyActions from '../components/StickyActions';
+import TopBar from '../components/TopBar';
 import { he } from '../i18n/he';
 
 interface Props {
@@ -12,17 +13,23 @@ interface Props {
   notice?: string;
   canStart: boolean;
   onStart: () => void;
+  /** ה-X למעלה. עם חדר פתוח שואלים קודם */
   onExit: () => void;
+  /** לקורא מסך: "יציאה מהחדר" או "חזרה למסך הפתיחה" */
+  exitLabel: string;
   /** הודעות, חלונות ועוד שמוצגים מעל המסך */
   overlay?: ReactNode;
 }
 
 /** מסך "משחק חדש": אותו מסך למשחק מקומי ולמקוון, וההבדל הוא רק מה שמתחת לבורר */
-export default function NewGameScreen({ mode, onModeChange, children, notice, canStart, onStart, onExit, overlay }: Props) {
+export default function NewGameScreen({ mode, onModeChange, children, notice, canStart, onStart, onExit, exitLabel, overlay }: Props) {
   return (
     <main className="screen">
-      <div className="screen-body">
+      {/* הכותרת באותה שורה עם ההגדרות וה-X, כדי לא לבזבז שורה בראש המסך */}
+      <TopBar onExit={onExit} exitLabel={exitLabel} settingsFrom="setup" className="top-bar-titled">
         <h1 className="heading">{he.newGame.title}</h1>
+      </TopBar>
+      <div className="screen-body">
         <ModeToggle mode={mode} onChange={onModeChange} />
         {children}
       </div>
@@ -31,9 +38,6 @@ export default function NewGameScreen({ mode, onModeChange, children, notice, ca
         {notice && <p className="help center-text">{notice}</p>}
         <button className="btn btn-primary" disabled={!canStart} onClick={onStart}>
           {he.newGame.start}
-        </button>
-        <button className="btn btn-ghost" onClick={onExit}>
-          {he.newGame.exit}
         </button>
       </StickyActions>
 

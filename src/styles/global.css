@@ -1,6 +1,6 @@
 /*
  * תפקידי הצבעים:
- * ורוד (accent): צבע המותג והפעולה הראשית (מתחילים, ממשיכים, הבא). ורוד חלש (btn-tinted): פעולה שמובילה לאותו מקום.
+ * ורוד (accent): צבע המותג והפעולה הראשית (מתחילים, ממשיכים, הבא). ורוד חלש (btn-tinted): פעולה חשובה שלא מתחרה בראשית.
  * ירוק (success) ואדום (danger): רק לתשובות של כן/לא (נכון/שגוי, בעד/נגד) ולתוצאות (נקודות, ניחוש). אדום גם לאישור פעולה שקשה לבטל.
  * אפור (surface-2): פעולות משניות.
  * ירוק לא משמש לקישוט, ולא לפעולה "חיובית" שאינה תשובה לשאלה.
@@ -239,7 +239,7 @@ button {
   background: var(--surface-2);
 }
 
-/* ורוד חלש: פעולה שמובילה לאותו מקום כמו הראשית ("הצטרפות לחדר" ליד "משחק חדש"), אבל בלי להתחרות בה */
+/* ורוד חלש: פעולה חשובה שלא מתחרה בראשית ("הצטרפות לחדר" ליד "משחק חדש", סיום הצבעה מתחת לבעד/נגד) */
 .btn-tinted {
   background: color-mix(in srgb, var(--accent) 16%, var(--surface));
   border: 2px solid var(--accent);
@@ -261,6 +261,11 @@ button {
   background: transparent;
   color: var(--muted);
   min-height: 48px;
+}
+
+/* כפתור שקוף בטקסט ורוד, למשל "התחרטתי, לבטל את ההצבעה" */
+.btn-ghost-accent {
+  color: var(--accent);
 }
 
 .btn:active:not(:disabled) {
@@ -366,6 +371,18 @@ button {
   display: flex;
   justify-content: flex-end;
   margin: -16px -8px -24px;
+}
+
+/* כותרת המסך בצד אחד, ההגדרות וה-X בצד השני. הפס הוא שורת הכותרת, אז הרווח מתחתיו רגיל */
+.top-bar-titled {
+  align-items: center;
+  margin-top: -8px;
+  margin-bottom: 0;
+}
+
+.top-bar-titled > .heading {
+  margin-inline-end: auto;
+  padding-inline-start: 8px;
 }
 
 /* ---------- הגדרות ---------- */
@@ -1153,6 +1170,11 @@ a.btn-ghost {
     box-shadow 150ms;
 }
 
+/* מעל המקלדת: המקלדת מכסה את הפס של מסך הבית באייפון, אז לא צריך את הריווח שלו */
+.sticky-actions.over-keyboard {
+  padding-bottom: 12px;
+}
+
 /* יש עוד תוכן שנגלל מתחת לפס: קו הפרדה וצל, כדי שיהיה ברור מה קבוע ומה נגלל */
 .sticky-actions.raised {
   border-top-color: var(--border);
@@ -1410,12 +1432,55 @@ a.btn-ghost {
   gap: 8px;
 }
 
-/* הקוד נכתב משמאל לימין, גם בממשק בעברית */
-.code-input {
+/* קוד החדר: קופסה לכל ספרה, משמאל לימין גם בממשק בעברית. השדה האמיתי שקוף ומכסה את כולן */
+.code-cells {
+  position: relative;
   direction: ltr;
-  text-align: center;
-  letter-spacing: 0.2em;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+
+.code-cells-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  border: none;
+  color: transparent;
+  caret-color: transparent;
+  font-size: 1rem; /* 16px ומעלה, כדי ש-iOS לא יעשה זום */
+}
+
+.code-cell {
+  display: grid;
+  place-items: center;
+  height: 56px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 1.6rem;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* הצטרפות מקישור: הקוד כבר ידוע ומוצג בשורה, ו"חדר אחר" בקצה השני */
+.room-code-inline {
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+}
+
+.link-end {
+  margin-inline-start: auto;
+}
+
+/* הקופסה שהספרה הבאה תיכנס אליה */
+.code-cell-active {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .code-join {
@@ -1607,6 +1672,8 @@ a.btn-ghost {
   width: min(220px, 60vw);
   height: auto;
   border-radius: 12px;
+  /* כשגוללים אליו: מעל הכפתורים הקבועים בתחתית */
+  scroll-margin-bottom: 120px;
 }
 
 /* בחירת מחליף למארח שיוצא */
